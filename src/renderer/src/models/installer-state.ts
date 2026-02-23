@@ -1,5 +1,6 @@
 import { DI } from 'aurelia'
 import type { ArduinoCliBoardInfo } from '../../../types/ipc'
+import type { SavedConfiguration } from './saved-configuration'
 
 export const IInstallerState = DI.createInterface<InstallerState>('IInstallerState')
 
@@ -41,6 +42,12 @@ export class InstallerState {
     /** All detected boards from the last scan */
     detectedBoards: ArduinoCliBoardInfo[] = []
 
+    /** Persisted device configurations shown on the home screen */
+    savedConfigurations: SavedConfiguration[] = []
+
+    /** ID of the configuration currently loaded in the workspace */
+    activeConfigId: string | null = null
+
     reset(): void {
         this.cliReady = false
         this.selectedDevice = null
@@ -52,5 +59,7 @@ export class InstallerState {
         this.configFiles = []
         this.lastError = null
         this.detectedBoards = []
+        this.activeConfigId = null
+        // NOTE: savedConfigurations is intentionally NOT reset — it persists across wizard runs
     }
 }

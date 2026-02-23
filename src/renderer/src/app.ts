@@ -2,7 +2,10 @@ import { route } from '@aurelia/router'
 
 @route({
     routes: [
-        { path: '', redirectTo: 'welcome' },
+        { path: '', redirectTo: 'home' },
+        { path: 'home', component: () => import('./views/home'), title: 'Home' },
+        { path: 'workspace', component: () => import('./views/workspace'), title: 'Workspace' },
+        // Legacy wizard routes (kept for deep-link / testing)
         { path: 'welcome', component: () => import('./views/welcome'), title: 'Welcome' },
         { path: 'manage-cli', component: () => import('./views/manage-cli'), title: 'Manage Arduino CLI' },
         { path: 'select-device', component: () => import('./views/select-device'), title: 'Select Device' },

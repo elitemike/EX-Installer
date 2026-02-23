@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@aurelia/dialog':
+        specifier: 2.0.0-rc.0
+        version: 2.0.0-rc.0
       '@aurelia/router':
         specifier: 2.0.0-rc.0
         version: 2.0.0-rc.0
@@ -65,6 +68,10 @@ importers:
         version: 7.3.1(@types/node@24.10.13)(jiti@2.6.1)(lightningcss@1.31.1)
 
 packages:
+
+  '@aurelia/dialog@2.0.0-rc.0':
+    resolution: {integrity: sha512-HFj8anVHUi3d7m0ufe3IMgDujDwvM/wWrU6sJqGqgkJRUZk3Emyqya2zBQFM2T5BXQg3AmXRevLy8Ln/Kb+x9w==}
+    engines: {node: '>=20.16.0'}
 
   '@aurelia/expression-parser@2.0.0-rc.0':
     resolution: {integrity: sha512-gZdtSiKrFAqPMHvt7aX/pkJ+M6qWCp+fEjj/vUO+agqafCkUyZB3bteYCMQa8tO1JcKtNUMlBuk7ii/e8k5dcQ==}
@@ -1701,6 +1708,14 @@ packages:
     resolution: {integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g==}
 
 snapshots:
+
+  '@aurelia/dialog@2.0.0-rc.0':
+    dependencies:
+      '@aurelia/kernel': 2.0.0-rc.0
+      '@aurelia/metadata': 2.0.0-rc.0
+      '@aurelia/platform-browser': 2.0.0-rc.0
+      '@aurelia/runtime': 2.0.0-rc.0
+      '@aurelia/runtime-html': 2.0.0-rc.0
 
   '@aurelia/expression-parser@2.0.0-rc.0':
     dependencies:

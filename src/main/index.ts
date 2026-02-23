@@ -39,6 +39,8 @@ function createWindow(): BrowserWindow {
         height: config.window.height,
         minWidth: config.window.minWidth,
         minHeight: config.window.minHeight,
+        resizable: config.window.resizable,
+        maximizable: config.window.maximizable,
         show: false,
         autoHideMenuBar: true,
         webPreferences: {

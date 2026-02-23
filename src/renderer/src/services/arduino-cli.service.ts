@@ -9,11 +9,7 @@ import type {
 
 export const IArduinoCliService = DI.createInterface<ArduinoCliService>('IArduinoCliService')
 
-/**
- * ArduinoCliService
- *
- * Wraps window.arduinoCli (contextBridge API) for the renderer.
- */
+/** Wraps window.arduinoCli (contextBridge API) for the renderer. */
 export class ArduinoCliService {
     progressLog: Array<{ phase: string; message: string }> = []
     private readonly unsubscribers: Array<() => void> = []

@@ -14,6 +14,7 @@
         "lint": "eslint src --ext .ts,.html"
     },
     "dependencies": {
+        "@aurelia/dialog": "2.0.0-rc.0",
         "@aurelia/router": "2.0.0-rc.0",
         "@aurelia/vite-plugin": "^2.0.0-rc.0",
         "@syncfusion/ej2": "^32.1.24",
