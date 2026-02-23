@@ -1,5 +1,6 @@
 import { resolve } from 'aurelia'
 import { IDialogController } from '@aurelia/dialog'
+import { StepModel, Stepper } from '@syncfusion/ej2-navigations'
 import { InstallerState } from '../models/installer-state'
 import { ArduinoCliService } from '../services/arduino-cli.service'
 import { UsbService } from '../services/usb.service'
@@ -23,7 +24,9 @@ export class DeviceWizard {
 
     // ── Wizard step (0–3) ────────────────────────────────────────────────────
     step = 0
-    readonly STEP_LABELS = ['Arduino CLI', 'Select Device', 'Select Product', 'Select Version']
+    readonly STEP_LABELS: StepModel[] = [
+        { label: 'Arduino CLI', iconCss: "sf-icon-cart" }, { label: 'Select Device', iconCss: "sf-icon-cart" }, { label: 'Select Product', iconCss: "sf-icon-cart" }, { label: 'Select Version', iconCss: "sf-icon-cart" }
+    ];
 
     // ── Step 0: CLI ──────────────────────────────────────────────────────────
     cliInstalled = false
@@ -61,10 +64,37 @@ export class DeviceWizard {
     /** True when running under `pnpm dev`. */
     readonly isMock = import.meta.env.DEV
 
+    // ── Syncfusion Stepper ───────────────────────────────────────────────────
+    stepperContainer!: HTMLElement
+    private sfStepper?: Stepper
+
+    private syncStepper(): void {
+        if (this.sfStepper) this.sfStepper.activeStep = this.step
+    }
+
     // ── Lifecycle ────────────────────────────────────────────────────────
     async binding(): Promise<void> {
         await this.checkCli()
         this.scanDevices() // background pre-scan
+    }
+
+    attached(): void {
+        this.sfStepper = new Stepper({
+            steps: this.STEP_LABELS,
+            activeStep: this.step,
+            readOnly: true
+        });
+
+        this.sfStepper.appendTo(this.stepperContainer);
+        let _this = this as any;
+
+        // TODO fix this settimeout hack
+        setTimeout(function () { _this.sfStepper.refresh(); }, 250);
+    }
+
+    detaching(): void {
+        this.sfStepper?.destroy()
+        this.sfStepper = undefined
     }
 
     // ── Step 0: CLI ──────────────────────────────────────────────────────────
@@ -230,11 +260,17 @@ export class DeviceWizard {
             return
         }
         this.step++
+        this.sfStepper?.nextStep();
+        //this.syncStepper()
         if (this.step === 3) await this.loadVersions()
     }
 
     goBack(): void {
-        if (this.step > 0) this.step--
+        if (this.step > 0) {
+            this.step--
+            //this.syncStepper()
+            this.sfStepper?.previousStep();
+        }
     }
 
     cancel(): void {

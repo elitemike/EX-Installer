@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@syncfusion/ej2-base/styles/tailwind.css";
 @import "@syncfusion/ej2-buttons/styles/tailwind.css";
+@import "@syncfusion/ej2-navigations/styles/tailwind.css";
+@import "@syncfusion/ej2-navigations/styles/stepper/tailwind.css";
+
 
 /* ── @aurelia/dialog native <dialog> reset ─────────────────────────────── */
 /* Strip browser chrome but preserve margin:auto so showModal() centers it */
