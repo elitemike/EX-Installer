@@ -30,7 +30,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4M9 3l6 6M9 3v6h6" />
                     </svg>
-                    <span class="font-medium">${state.selectedDevice.name}</span>
+                    <span class="font-medium">${activeConfigName}</span>
                     <span class="text-gray-400">—</span>
                     <span class="text-blue-300">${productName}</span>
                     <span class="text-gray-500 text-xs">${state.selectedVersion}</span>
@@ -56,8 +56,9 @@
                             <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
                                 class.bind="cfg.id === state.activeConfigId ? 'bg-blue-400' : 'bg-gray-600'"></div>
                             <div class="min-w-0">
-                                <p class="text-white text-sm truncate">${cfg.deviceName}</p>
-                                <p class="text-gray-400 text-xs">${cfg.productName} · ${cfg.version}</p>
+                                <p class="text-white text-sm truncate">${cfg.name}</p>
+                                <p class="text-gray-400 text-xs">${cfg.deviceName} · ${cfg.productName} · ${cfg.version}
+                                </p>
                             </div>
                         </div>
                         <!-- Delete button -->

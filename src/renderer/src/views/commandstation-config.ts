@@ -22,6 +22,7 @@ export class CommandstationConfig {
 
     enableWifi = false
     wifiMode = 'ap'
+    wifiHostname = 'dccex'
     wifiSsid = ''
     wifiPassword = ''
     wifiChannel = 1
@@ -97,6 +98,7 @@ export class CommandstationConfig {
             display: this.display,
             enableWifi: this.enableWifi,
             wifiMode: this.wifiMode,
+            wifiHostname: this.wifiHostname,
             wifiSsid: this.wifiSsid,
             wifiPassword: this.wifiPassword,
             wifiChannel: this.wifiChannel,

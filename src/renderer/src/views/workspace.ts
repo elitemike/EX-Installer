@@ -220,4 +220,14 @@ export class Workspace {
         const key = this.state.selectedProduct
         return key ? (productDetails[key]?.productName ?? key) : ''
     }
+
+    get activeConfigName(): string {
+        const id = this.state.activeConfigId
+        if (!id) return this.state.selectedDevice?.name ?? ''
+        return (
+            this.savedConfigs.find((c) => c.id === id)?.name ??
+            this.state.savedConfigurations.find((c) => c.id === id)?.name ??
+            this.state.selectedDevice?.name ?? ''
+        )
+    }
 }

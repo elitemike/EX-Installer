@@ -164,6 +164,39 @@
                         class="bg-red-900/30 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm">
                         ${versionError}
                     </div>
+                </div>
+
+                <!-- ─── Step 4: Confirm ──────────────────────────────────── -->
+                <div if.bind="step === 4" class="space-y-4">
+                    <p class="text-gray-300 text-sm">Review your selections and give this device a name.</p>
+
+                    <div class="bg-gray-800/50 border border-white/10 rounded-xl p-4 space-y-2.5">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Board</span>
+                            <span class="text-white font-medium">${selectedBoard.name}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Port</span>
+                            <span class="text-gray-300">${selectedBoard.port}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Product</span>
+                            <span class="text-white font-medium">${products.find(p => p.key ===
+                                selectedProduct)?.name}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Version</span>
+                            <span class="text-blue-300">${selectedVersion}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-300 text-sm mb-1.5">Device Name</label>
+                        <input value.bind="deviceNickname" type="text" placeholder="e.g. My Layout Controller"
+                            class="w-full bg-gray-800 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+                        <p class="text-gray-500 text-xs mt-1.5">A friendly name to identify this device in EX-Installer.
+                        </p>
+                    </div>
 
                     <div if.bind="finishError"
                         class="bg-red-900/30 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm">
@@ -186,7 +219,7 @@
                 </button>
                 <button click.trigger="goNext()" disabled.bind="!canGoNext || finishing || cliInstalling || versionBusy"
                     class="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-white text-sm font-semibold transition-colors">
-                    ${finishing ? 'Setting up...' : (step === 3 ? 'Finish' : 'Next')}
+                    ${finishing ? 'Setting up...' : (step === 4 ? 'Finish' : 'Next')}
                 </button>
             </div>
         </div>

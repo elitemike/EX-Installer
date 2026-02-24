@@ -22,10 +22,14 @@ export class DeviceWizard {
     private readonly files = resolve(FileService)
     private readonly preferences = resolve(PreferencesService)
 
-    // ── Wizard step (0–3) ────────────────────────────────────────────────────
+    // ── Wizard step (0–4) ────────────────────────────────────────────────────
     step = 0
     readonly STEP_LABELS: StepModel[] = [
-        { label: 'Arduino CLI', iconCss: "sf-icon-cart" }, { label: 'Select Device', iconCss: "sf-icon-cart" }, { label: 'Select Product', iconCss: "sf-icon-cart" }, { label: 'Select Version', iconCss: "sf-icon-cart" }
+        { label: 'Arduino CLI', iconCss: 'sf-icon-cart' },
+        { label: 'Select Device', iconCss: 'sf-icon-cart' },
+        { label: 'Select Product', iconCss: 'sf-icon-cart' },
+        { label: 'Select Version', iconCss: 'sf-icon-cart' },
+        { label: 'Confirm', iconCss: 'sf-icon-cart' },
     ];
 
     // ── Step 0: CLI ──────────────────────────────────────────────────────────
@@ -56,6 +60,9 @@ export class DeviceWizard {
     versionBusy = false
     versionStatus = ''
     versionError: string | null = null
+
+    // ── Step 4: Confirm ──────────────────────────────────────────────────────
+    deviceNickname = ''
 
     // ── Finishing ────────────────────────────────────────────────────────────
     finishing = false
@@ -250,18 +257,18 @@ export class DeviceWizard {
         if (this.step === 1) return this.selectedBoard !== null
         if (this.step === 2) return this.selectedProduct !== null
         if (this.step === 3) return this.selectedVersion !== null && !this.versionBusy
+        if (this.step === 4) return this.deviceNickname.trim().length > 0
         return false
     }
 
     async goNext(): Promise<void> {
         if (!this.canGoNext) return
-        if (this.step === 3) {
+        if (this.step === 4) {
             await this.finish()
             return
         }
         this.step++
         this.sfStepper?.nextStep();
-        //this.syncStepper()
         if (this.step === 3) await this.loadVersions()
     }
 
@@ -314,7 +321,7 @@ export class DeviceWizard {
             const id = String(Date.now())
             const savedConf: SavedConfiguration = {
                 id,
-                name: `${this.selectedBoard.name} — ${product.productName}`,
+                name: this.deviceNickname.trim(),
                 deviceName: this.selectedBoard.name,
                 devicePort: this.selectedBoard.port,
                 deviceFqbn: this.selectedBoard.fqbn,
