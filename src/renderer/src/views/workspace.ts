@@ -115,7 +115,7 @@ export class Workspace {
         this.compileError = null
     }
 
-    async compileAndUpload(): Promise<void> {
+    async compile(): Promise<void> {
         const device = this.state.selectedDevice
         if (!device || !this.state.repoPath) return
 
@@ -136,16 +136,40 @@ export class Workspace {
 
             this.compileLog += `Compiling for ${fqbn}...\n`
             this.progressPercent = 40
-            const compileResult = await this.cli.compile(this.state.repoPath, fqbn)
-            this.compileLog += compileResult.output ?? ''
-            if (!compileResult.success) throw new Error(compileResult.error ?? 'Compilation failed')
+            const result = await this.cli.compile(this.state.repoPath, fqbn)
+            this.compileLog += result.output ?? ''
+            if (!result.success) throw new Error(result.error ?? 'Compilation failed')
+
             this.progressPercent = 70
+            this.compileSuccess = true
+            this.compileLog += '\n✓ Compile successful!'
+        } catch (err) {
+            this.compileError = (err as Error).message
+            this.compileSuccess = false
+        } finally {
+            this.isCompiling = false
+        }
+    }
+
+    async upload(): Promise<void> {
+        const device = this.state.selectedDevice
+        if (!device || !this.state.repoPath) return
+
+        this.isCompiling = true
+        this.compileError = null
+        this.progressPercent = 75
+
+        try {
+            const fqbn = device.fqbn
+            if (!fqbn) {
+                throw new Error(`Board "${device.name}" has no FQBN — install Arduino CLI and rescan to identify it.`)
+            }
 
             this.compileLog += `\nUploading to ${device.port}...\n`
             this.progressPercent = 80
-            const uploadResult = await this.cli.upload(this.state.repoPath, fqbn, device.port)
-            this.compileLog += uploadResult.output ?? ''
-            if (!uploadResult.success) throw new Error(uploadResult.error ?? 'Upload failed')
+            const result = await this.cli.upload(this.state.repoPath, fqbn, device.port)
+            this.compileLog += result.output ?? ''
+            if (!result.success) throw new Error(result.error ?? 'Upload failed')
 
             this.progressPercent = 100
             this.compileSuccess = true
@@ -155,6 +179,13 @@ export class Workspace {
             this.compileSuccess = false
         } finally {
             this.isCompiling = false
+        }
+    }
+
+    async compileAndUpload(): Promise<void> {
+        await this.compile()
+        if (this.compileSuccess) {
+            await this.upload()
         }
     }
 
