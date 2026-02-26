@@ -482,8 +482,9 @@ describe('compile()', () => {
 // The EX-CSB1 (DCC-EX CommandStation Board 1) is an ESP32-S3 based board with
 // VID:PID 303a:1001.  The IPC layer maps that to FQBN 'esp32:esp32:esp32s3'.
 // A typical CSB1 install uses:
-//   motorDriver: 'EXCSB1', enableWifi: true, wifiMode: 'ap',
-//   wifiChannel: 1, disableEeprom: true (all auto-selected for ESP32).
+//   motorDriver: 'EXCSB1', display: 'OLED_132x64' (SH1106 onboard),
+//   enableWifi: true, wifiMode: 'ap', wifiChannel: 1,
+//   disableEeprom: true (all auto-selected for ESP32).
 //
 // compile() builds: ['compile', '--fqbn', fqbn, sketchPath, '--format', 'json']
 
@@ -558,6 +559,32 @@ describe('compile() — EX-CSB1 configuration', () => {
         mockSpawn.mockReturnValue(makeSpawnChild(0, compilerOutput))
         const result = await svc.compile(CSB1_SKETCH_PATH, CSB1_FQBN)
         expect(result.output).toContain('"success":true')
+    })
+
+    it('fails when hand-edited config.h omits WIFI_HOSTNAME (station-mode WiFi with real SSID)', async () => {
+        // Reproduces the exact scenario of a user supplying:
+        //   #define MOTOR_SHIELD_TYPE EXCSB1
+        //   #define ENABLE_WIFI true
+        //   #define WIFI_SSID "RTS"
+        //   #define WIFI_PASSWORD "SomePassword"
+        //   #define WIFI_CHANNEL 1
+        //   #define DISABLE_EEPROM
+        //
+        // Missing required defines: IP_PORT, SCROLLMODE, and WIFI_HOSTNAME.
+        // WIFI_HOSTNAME is the compile blocker — CommandStation-EX firmware
+        // references it directly.  generateCommandStationConfig() always emits
+        // #define WIFI_HOSTNAME "..." immediately before WIFI_SSID whenever
+        // enableWifi is true, so the installer never produces this broken config.
+        const svc = makeService()
+        const stderrOutput = [
+            "CommandStation-EX/WifiInterface.cpp:51:37: error: 'WIFI_HOSTNAME' was not declared in this scope",
+            'compilation terminated.',
+        ].join('\n')
+        mockSpawn.mockReturnValue(makeSpawnChild(1, '', stderrOutput))
+        const result = await svc.compile(CSB1_SKETCH_PATH, CSB1_FQBN)
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('WIFI_HOSTNAME')
+        expect(result.error).toContain('was not declared in this scope')
     })
 })
 

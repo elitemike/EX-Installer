@@ -43,6 +43,8 @@ export function generateCommandStationConfig(opts: CommandStationConfigOptions):
             lines.push('#define OLED_DRIVER 128,32')
         } else if (opts.display === 'OLED_128x64') {
             lines.push('#define OLED_DRIVER 128,64')
+        } else if (opts.display === 'OLED_132x64') {
+            lines.push('#define OLED_DRIVER 132,64')
         } else if (opts.display === 'LCD_16x2') {
             lines.push('#define LCD_DRIVER 0x27,16,2')
         } else if (opts.display === 'LCD_20x4') {

@@ -16,6 +16,7 @@ export class CommandstationConfig {
         { label: 'None', value: 'NONE' },
         { label: 'OLED 128x32', value: 'OLED_128x32' },
         { label: 'OLED 128x64', value: 'OLED_128x64' },
+        { label: 'OLED 132x64 (SH1106 / EX-CSB1)', value: 'OLED_132x64' },
         { label: 'LCD 16x2', value: 'LCD_16x2' },
         { label: 'LCD 20x4', value: 'LCD_20x4' },
     ]

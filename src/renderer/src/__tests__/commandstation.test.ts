@@ -76,6 +76,11 @@ describe('generateCommandStationConfig', () => {
             expect(out).toContain('#define OLED_DRIVER 128,64')
         })
 
+        it('OLED_132x64 → OLED_DRIVER 132,64 (SH1106 / EX-CSB1 default)', () => {
+            const out = generateCommandStationConfig(baseOpts({ display: 'OLED_132x64' }))
+            expect(out).toContain('#define OLED_DRIVER 132,64')
+        })
+
         it('LCD_16x2 → LCD_DRIVER 0x27,16,2', () => {
             const out = generateCommandStationConfig(baseOpts({ display: 'LCD_16x2' }))
             expect(out).toContain('#define LCD_DRIVER 0x27,16,2')
