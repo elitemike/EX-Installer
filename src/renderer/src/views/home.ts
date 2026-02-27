@@ -30,7 +30,7 @@ export class Home {
         const result = await this.dialogService
             .open({ component: () => DeviceWizard })
             .whenClosed((r) => r)
-        if (result.status === 'ok') {
+        if (typeof result === 'object' && result !== null && 'status' in result && (result as any).status === 'ok') {
             await this.router.load('workspace')
         }
     }

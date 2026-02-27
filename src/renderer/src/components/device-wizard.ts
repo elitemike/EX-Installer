@@ -9,6 +9,7 @@ import { FileService } from '../services/file.service'
 import { PreferencesService } from '../services/preferences.service'
 import { productDetails, extractVersionDetails } from '../models/product-details'
 import type { ArduinoCliBoardInfo } from '../../../types/ipc'
+import { KNOWN_BOARDS } from '../views/select-device'
 import type { SavedConfiguration } from '../models/saved-configuration'
 
 export class DeviceWizard {

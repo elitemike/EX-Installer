@@ -311,8 +311,8 @@ describe('Workspace.compile() — EX-CSB1 full configuration', () => {
                 repoPath: CSB1_REPO,
                 configFiles: [{ name: 'config.h', content: CSB1_CONFIG_H }],
             },
-            cli: { compile: mockCompile },
-            files: { writeFile: mockWriteFile },
+            cli: { compile: mockCompile as unknown as (sketchPath: string, fqbn: string) => Promise<any> },
+            files: { writeFile: mockWriteFile as unknown as (filePath: string, content: string) => Promise<void> },
         })
 
         await ws.compile()

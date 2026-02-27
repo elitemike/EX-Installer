@@ -10,7 +10,7 @@ import type { ArduinoCliBoardInfo } from '../../../types/ipc'
  * Used as a fallback when the Arduino CLI isn't installed or doesn't
  * recognise the board.
  */
-const KNOWN_BOARDS: Record<string, string> = {
+export const KNOWN_BOARDS: Record<string, string> = {
     '2341:0042': 'Arduino Mega 2560',
     '2341:0010': 'Arduino Mega 2560',
     '2341:0242': 'Arduino Mega 2560 (DFU)',

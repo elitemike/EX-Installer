@@ -2,7 +2,7 @@ import { resolve } from 'aurelia'
 import { Router } from '@aurelia/router'
 import { InstallerState } from '../models/installer-state'
 import { FileService } from '../services/file.service'
-import { generateCommandStationConfig, generateMyAutomation } from '../config/commandstation'
+import { generateCommandStationConfig, generateMyAutomation } from '../config'
 
 export class CommandstationConfig {
     private readonly router = resolve(Router)

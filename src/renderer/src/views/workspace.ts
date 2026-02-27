@@ -214,11 +214,11 @@ export class Workspace {
         const result = await this.dialogService
             .open({ component: () => DeviceWizard })
             .whenClosed((r) => r)
-        if (result.status === 'ok') {
+        if (typeof result === 'object' && result !== null && 'status' in result && (result as any).status === 'ok') {
             await this.loadSavedConfigs()
             // The wizard stored the new config in state directly and in savedConfigurations.
             // Re-apply it via switchToConfig so configFiles / repoPath are all in sync.
-            const newId = (result.value as { id: string } | undefined)?.id
+            const newId = ((result as any).value as { id: string } | undefined)?.id
             const newConfig = this.state.savedConfigurations.find((c) => c.id === newId)
             if (newConfig) {
                 await this.switchToConfig(newConfig)
