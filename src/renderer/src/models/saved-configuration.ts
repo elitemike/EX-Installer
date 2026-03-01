@@ -18,8 +18,10 @@ export interface SavedConfiguration {
     productName: string
     /** Selected version tag (e.g. "v5.2.80-Prod") */
     version: string
-    /** Absolute path to the cloned repository on disk */
+    /** Absolute path to the cloned repository on disk (git source) */
     repoPath: string
+    /** Absolute path to the per-device scratch/build directory */
+    scratchPath: string
     /** Editable config file contents at the time of last save */
     configFiles: Array<{ name: string; content: string }>
     /** ISO 8601 date string of when this config was last modified */

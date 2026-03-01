@@ -91,8 +91,22 @@
             <!-- Spacer -->
             <div class="flex-1"></div>
 
-            <!-- ── COMPILE & UPLOAD button (prominent) ── -->
-            <button click.trigger="compileAndUpload()" disabled.bind="isCompiling"
+            <!-- ── COMPILE button (dev/mock mode only) ── -->
+            <button if.bind="isMock" click.trigger="compile()" disabled.bind="isCompiling"
+                class="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-white font-semibold text-sm transition-colors shadow-lg shadow-blue-900/30">
+                <svg if.bind="!isCompiling" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                <svg if.bind="isCompiling" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                ${isCompiling ? 'Compiling...' : 'Compile'}
+            </button>
+
+            <!-- ── COMPILE & UPLOAD button (production only) ── -->
+            <button if.bind="!isMock" click.trigger="compileAndUpload()" disabled.bind="isCompiling"
                 class="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-white font-semibold text-sm transition-colors shadow-lg shadow-green-900/30">
                 <svg if.bind="!isCompiling" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

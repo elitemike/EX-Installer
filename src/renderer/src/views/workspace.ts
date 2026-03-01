@@ -49,11 +49,11 @@ export class Workspace {
      * the mock repo is seeded.
      */
     private async refreshConfigFilesFromDisk(): Promise<void> {
-        if (!this.state.repoPath) return
+        if (!this.state.scratchPath) return
         let changed = false
         for (const f of this.state.configFiles) {
             if (f.content.trim() !== '') continue  // already has content
-            const diskPath = `${this.state.repoPath}/${f.name}`
+            const diskPath = `${this.state.scratchPath}/${f.name}`
             const diskExists = await this.files.exists(diskPath)
             if (diskExists) {
                 f.content = await this.files.readFile(diskPath)
@@ -88,8 +88,8 @@ export class Workspace {
 
     async saveFiles(): Promise<void> {
         for (const f of this.state.configFiles) {
-            if (this.state.repoPath) {
-                await this.files.writeFile(`${this.state.repoPath}/${f.name}`, f.content)
+            if (this.state.scratchPath) {
+                await this.files.writeFile(`${this.state.scratchPath}/${f.name}`, f.content)
             }
         }
         await this.updateSavedConfig()
@@ -117,7 +117,7 @@ export class Workspace {
 
     async compile(): Promise<void> {
         const device = this.state.selectedDevice
-        if (!device || !this.state.repoPath) return
+        if (!device || !this.state.scratchPath) return
 
         this.isCompiling = true
         this.compileLog = ''
@@ -136,7 +136,7 @@ export class Workspace {
 
             this.compileLog += `Compiling for ${fqbn}...\n`
             this.progressPercent = 40
-            const result = await this.cli.compile(this.state.repoPath, fqbn)
+            const result = await this.cli.compile(this.state.scratchPath!, fqbn)
             this.compileLog += result.output ?? ''
             if (!result.success) throw new Error(result.error ?? 'Compilation failed')
 
@@ -153,7 +153,7 @@ export class Workspace {
 
     async upload(): Promise<void> {
         const device = this.state.selectedDevice
-        if (!device || !this.state.repoPath) return
+        if (!device || !this.state.scratchPath) return
 
         this.isCompiling = true
         this.compileError = null
@@ -167,7 +167,7 @@ export class Workspace {
 
             this.compileLog += `\nUploading to ${device.port}...\n`
             this.progressPercent = 80
-            const result = await this.cli.upload(this.state.repoPath, fqbn, device.port)
+            const result = await this.cli.upload(this.state.scratchPath!, fqbn, device.port)
             this.compileLog += result.output ?? ''
             if (!result.success) throw new Error(result.error ?? 'Upload failed')
 
@@ -200,6 +200,7 @@ export class Workspace {
         this.state.selectedProduct = config.product
         this.state.selectedVersion = config.version
         this.state.repoPath = config.repoPath
+        this.state.scratchPath = config.scratchPath
         this.state.configFiles = config.configFiles.map((f) => ({ ...f }))
         this.state.activeConfigId = config.id
         this.activeFileIndex = 0

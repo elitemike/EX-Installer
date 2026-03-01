@@ -12,6 +12,18 @@ import type { ArduinoCliBoardInfo } from '../../../types/ipc'
 import { KNOWN_BOARDS } from '../views/select-device'
 import type { SavedConfiguration } from '../models/saved-configuration'
 
+/** All board types the installer knows about — shown in mock mode instead of real USB scan. */
+const MOCK_ALL_BOARDS: ArduinoCliBoardInfo[] = [
+    { name: 'EX-CSB1 (DCC-EX CommandStation Board 1)', fqbn: 'esp32:esp32:esp32',               port: 'MOCK_CSB1',  protocol: 'serial' },
+    { name: 'Arduino Mega 2560',                       fqbn: 'arduino:avr:mega:cpu=atmega2560',  port: 'MOCK_MEGA',  protocol: 'serial' },
+    { name: 'Arduino Uno',                             fqbn: 'arduino:avr:uno',                  port: 'MOCK_UNO',   protocol: 'serial' },
+    { name: 'Arduino Nano',                            fqbn: 'arduino:avr:nano',                 port: 'MOCK_NANO',  protocol: 'serial' },
+    { name: 'Arduino Nano Every',                      fqbn: 'arduino:megaavr:nona4809',         port: 'MOCK_NANO_EVERY', protocol: 'serial' },
+    { name: 'ESP32 (CP2102)',                          fqbn: 'esp32:esp32:esp32',                port: 'MOCK_ESP32', protocol: 'serial' },
+    { name: 'CH340 Serial (Nano/Mega clone)',          fqbn: '',                                 port: 'MOCK_CH340', protocol: 'serial' },
+    { name: 'FTDI Serial Adapter',                     fqbn: '',                                 port: 'MOCK_FTDI',  protocol: 'serial' },
+]
+
 export class DeviceWizard {
     /** Injected automatically by @aurelia/dialog */
     private readonly $dialog = resolve(IDialogController)
@@ -156,6 +168,12 @@ export class DeviceWizard {
 
     // ── Step 1: Device ───────────────────────────────────────────────────────
     async scanDevices(): Promise<void> {
+        // In mock mode show every known board type — no USB hardware needed.
+        if (this.isMock) {
+            this.boards = [...MOCK_ALL_BOARDS]
+            return
+        }
+
         this.scanning = true
         this.scanError = null
         try {
@@ -295,31 +313,111 @@ export class DeviceWizard {
                 throw new Error('Incomplete selection — cannot finish.')
             }
 
+            // ── Paths ────────────────────────────────────────────────────────
             const reposDir = await this.files.getInstallDir('repos')
-            const repoPath = `${reposDir}/${product.repoName.split('/')[1]}`
-            this.state.repoPath = repoPath
-            this.state.selectedDevice = this.selectedBoard
-            this.state.selectedProduct = this.selectedProduct
-            this.state.selectedVersion = this.selectedVersion
+            const repoFolder = product.repoName.split('/')[1]
+            const repoPath = `${reposDir}/${repoFolder}`         // git source (never cleared)
+            const id = String(Date.now())
+            // Arduino CLI requires the sketch directory name to match the .ino filename,
+            // so nest files under _build/<id>/<repoFolder> (e.g. CommandStation-EX/).
+            const scratchPath = `${reposDir}/_build/${id}/${repoFolder}`  // per-device working dir
 
+            // ── Checkout requested version in the source repo ────────────────
             const checkout = await this.git.checkout(repoPath, this.selectedVersion)
             if (!checkout.success) throw new Error(checkout.error ?? 'Checkout failed')
 
+            // ── Collect user-tracked file names ──────────────────────────────
+            // These are config.h, myAutomation, etc. — preserved across reconfigures.
+            const userFileNames = new Set<string>(product.minimumConfigFiles)
+            if (product.otherConfigFilePatterns) {
+                // We'll match files from the scratch dir against these patterns
+                for (const p of product.otherConfigFilePatterns) {
+                    // We'll evaluate per-file below
+                    void p
+                }
+            }
+            const userPatterns = (product.otherConfigFilePatterns ?? []).map(p => new RegExp(p))
+            const isUserFile = (name: string) =>
+                userFileNames.has(name) || userPatterns.some(re => re.test(name))
+
+            // ── Save existing user files from previous scratchPath (if any) ──
+            // Look for any previously saved config for the same product/repo
+            const prevConf = this.state.savedConfigurations.find(
+                c => c.product === this.selectedProduct && c.scratchPath
+            )
+            const savedUserFiles: Map<string, string> = new Map()
+            if (prevConf?.scratchPath) {
+                try {
+                    const prevFiles = await this.files.listDir(prevConf.scratchPath)
+                    for (const name of prevFiles) {
+                        if (isUserFile(name)) {
+                            const content = await this.files.readFile(`${prevConf.scratchPath}/${name}`)
+                            if (content.trim()) savedUserFiles.set(name, content)
+                        }
+                    }
+                } catch { /* previous scratch dir may not exist */ }
+            }
+
+            // ── Clear scratch dir and create fresh ───────────────────────────
+            try { await this.files.deleteFiles(scratchPath) } catch { /* ignore */ }
+            await this.files.mkdir(scratchPath)
+
+            // ── Selectively copy source files from repo (no examples/templates) ──
+            const allowedExts = ['.ino', '.cpp', '.h']
+            const allowedSubDirs = ['src', 'libraries']
+            const isSourceFile = (name: string) => {
+                if (name.endsWith('.example') || name.endsWith('.template')) return false
+                return allowedExts.some(ext => name.endsWith(ext))
+            }
+            const copySourceDir = async (srcDir: string, destDir: string) => {
+                const entries = await this.files.listDir(srcDir)
+                for (const entry of entries) {
+                    const src = `${srcDir}/${entry}`
+                    const dest = `${destDir}/${entry}`
+                    if (allowedSubDirs.includes(entry)) {
+                        await this.files.mkdir(dest)
+                        await copySourceDir(src, dest)
+                    } else if (isSourceFile(entry) && !isUserFile(entry)) {
+                        await this.files.copyFiles(src, dest)
+                    }
+                }
+            }
+            await copySourceDir(repoPath, scratchPath)
+
+            // ── Resolve user config files ────────────────────────────────────
+            // Priority: 1) previously-saved user edit, 2) file in source repo, 3) .example in source
             const configFiles: Array<{ name: string; content: string }> = []
             for (const fileName of product.minimumConfigFiles) {
-                let content = ''
-                const filePath = `${repoPath}/${fileName}`
-                const examplePath = `${repoPath}/${fileName}.example`
-                if (await this.files.exists(filePath)) {
-                    content = await this.files.readFile(filePath)
-                } else if (await this.files.exists(examplePath)) {
-                    content = await this.files.readFile(examplePath)
+                let content = savedUserFiles.get(fileName) ?? ''
+                if (!content) {
+                    const filePath = `${repoPath}/${fileName}`
+                    const examplePath = `${repoPath}/${fileName}.example`
+                    if (await this.files.exists(filePath)) {
+                        content = await this.files.readFile(filePath)
+                    } else if (await this.files.exists(examplePath)) {
+                        content = await this.files.readFile(examplePath)
+                    }
                 }
                 configFiles.push({ name: fileName, content })
+                await this.files.writeFile(`${scratchPath}/${fileName}`, content)
             }
+            // Restore other tracked user files (myAutomation, etc.)
+            for (const [name, content] of savedUserFiles) {
+                if (!product.minimumConfigFiles.includes(name)) {
+                    configFiles.push({ name, content })
+                    await this.files.writeFile(`${scratchPath}/${name}`, content)
+                }
+            }
+
+            // ── Update state ─────────────────────────────────────────────────
+            this.state.repoPath = repoPath
+            this.state.scratchPath = scratchPath
+            this.state.selectedDevice = this.selectedBoard
+            this.state.selectedProduct = this.selectedProduct
+            this.state.selectedVersion = this.selectedVersion
             this.state.configFiles = configFiles
 
-            const id = String(Date.now())
+            // ── Persist saved configuration ──────────────────────────────────
             const savedConf: SavedConfiguration = {
                 id,
                 name: this.deviceNickname.trim(),
@@ -330,11 +428,13 @@ export class DeviceWizard {
                 productName: product.productName,
                 version: this.selectedVersion,
                 repoPath,
+                scratchPath,
                 configFiles,
                 lastModified: new Date().toISOString(),
             }
             this.state.activeConfigId = id
-            const existing = Array.isArray(this.state.savedConfigurations) ? this.state.savedConfigurations : []
+            const existing = Array.isArray(this.state.savedConfigurations)
+                ? this.state.savedConfigurations : []
             this.state.savedConfigurations = [savedConf, ...existing].slice(0, 10)
             await this.preferences.set('savedConfigurations', this.state.savedConfigurations)
 

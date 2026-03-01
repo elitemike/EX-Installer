@@ -480,7 +480,9 @@ describe('compile()', () => {
 // ── compile() — EX-CSB1 configuration ────────────────────────────────────────
 //
 // The EX-CSB1 (DCC-EX CommandStation Board 1) is an ESP32-S3 based board with
-// VID:PID 303a:1001.  The IPC layer maps that to FQBN 'esp32:esp32:esp32s3'.
+// VID:PID 303a:1001.  The IPC layer maps that to FQBN 'esp32:esp32:esp32'
+// (generic ESP32 target — matches old Python installer; esp32s3 FQBN fails to
+// compile against CommandStation-EX Prod due to missing LEDC_HS_SIG_OUT*_IDX).
 // A typical CSB1 install uses:
 //   motorDriver: 'EXCSB1', display: 'OLED_132x64' (SH1106 onboard),
 //   enableWifi: true, wifiMode: 'ap', wifiChannel: 1,
@@ -490,7 +492,7 @@ describe('compile()', () => {
 
 describe('compile() — EX-CSB1 configuration', () => {
     // CSB1 specific constants (match arduino-cli-ipc.ts KNOWN_BOARDS entry)
-    const CSB1_FQBN = 'esp32:esp32:esp32s3'
+    const CSB1_FQBN = 'esp32:esp32:esp32'
     const CSB1_SKETCH_PATH = '/home/user/ex-installer/CommandStation-EX'
 
     function makeSpawnChild(exitCode: number, stdout = '', stderr = '') {
@@ -515,7 +517,7 @@ describe('compile() — EX-CSB1 configuration', () => {
 
     it('spawns arduino-cli with the exact CSB1 arg sequence', async () => {
         // Verifies the full ordered arg array:
-        // ['compile', '--fqbn', 'esp32:esp32:esp32s3', <sketchPath>, '--format', 'json']
+        // ['compile', '--fqbn', 'esp32:esp32:esp32', <sketchPath>, '--format', 'json']
         const svc = makeService()
         mockSpawn.mockReturnValue(makeSpawnChild(0))
         await svc.compile(CSB1_SKETCH_PATH, CSB1_FQBN)

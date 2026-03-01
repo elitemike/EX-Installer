@@ -4,7 +4,7 @@ import { IS_DEV_MOCK, MOCK_SERIAL_PORTS } from '../dev-mock'
 
 /** VID:PID → board name + FQBN (used for mock board identification). */
 const KNOWN_BOARDS: Record<string, { name: string; fqbn: string }> = {
-    '303a:1001': { name: 'EX-CSB1 (DCC-EX CommandStation Board 1)', fqbn: 'esp32:esp32:esp32s3' },
+    '303a:1001': { name: 'EX-CSB1 (DCC-EX CommandStation Board 1)', fqbn: 'esp32:esp32:esp32' },
     '2341:0042': { name: 'Arduino Mega 2560', fqbn: 'arduino:avr:mega:cpu=atmega2560' },
     '2341:0010': { name: 'Arduino Mega 2560', fqbn: 'arduino:avr:mega' },
     '2341:0043': { name: 'Arduino Uno', fqbn: 'arduino:avr:uno' },
@@ -24,12 +24,10 @@ export function registerArduinoCliIpcHandlers(arduinoCliService: ArduinoCliServi
     })
 
     ipcMain.handle('arduino-cli:is-installed', () => {
-        if (IS_DEV_MOCK) return true
         return arduinoCliService.isInstalled()
     })
 
     ipcMain.handle('arduino-cli:get-version', async () => {
-        if (IS_DEV_MOCK) return 'mock (dev mode)'
         return arduinoCliService.getVersion()
     })
 

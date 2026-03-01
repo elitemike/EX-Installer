@@ -24,8 +24,11 @@ export class InstallerState {
     /** Selected version tag (e.g. 'v5.2.80-Prod') */
     selectedVersion: string | null = null
 
-    /** Path to the cloned repo on disk */
+    /** Path to the cloned repo on disk (git source) */
     repoPath: string | null = null
+
+    /** Path to the per-device scratch/build directory */
+    scratchPath: string | null = null
 
     /** Whether to use existing config files from disk */
     useExistingConfig = false
@@ -54,6 +57,7 @@ export class InstallerState {
         this.selectedProduct = null
         this.selectedVersion = null
         this.repoPath = null
+        this.scratchPath = null
         this.useExistingConfig = false
         this.advancedConfig = false
         this.configFiles = []
