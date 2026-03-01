@@ -14,14 +14,14 @@ import type { SavedConfiguration } from '../models/saved-configuration'
 
 /** All board types the installer knows about — shown in mock mode instead of real USB scan. */
 const MOCK_ALL_BOARDS: ArduinoCliBoardInfo[] = [
-    { name: 'EX-CSB1 (DCC-EX CommandStation Board 1)', fqbn: 'esp32:esp32:esp32',               port: 'MOCK_CSB1',  protocol: 'serial' },
-    { name: 'Arduino Mega 2560',                       fqbn: 'arduino:avr:mega:cpu=atmega2560',  port: 'MOCK_MEGA',  protocol: 'serial' },
-    { name: 'Arduino Uno',                             fqbn: 'arduino:avr:uno',                  port: 'MOCK_UNO',   protocol: 'serial' },
-    { name: 'Arduino Nano',                            fqbn: 'arduino:avr:nano',                 port: 'MOCK_NANO',  protocol: 'serial' },
-    { name: 'Arduino Nano Every',                      fqbn: 'arduino:megaavr:nona4809',         port: 'MOCK_NANO_EVERY', protocol: 'serial' },
-    { name: 'ESP32 (CP2102)',                          fqbn: 'esp32:esp32:esp32',                port: 'MOCK_ESP32', protocol: 'serial' },
-    { name: 'CH340 Serial (Nano/Mega clone)',          fqbn: '',                                 port: 'MOCK_CH340', protocol: 'serial' },
-    { name: 'FTDI Serial Adapter',                     fqbn: '',                                 port: 'MOCK_FTDI',  protocol: 'serial' },
+    { name: 'EX-CSB1 (DCC-EX CommandStation Board 1)', fqbn: 'esp32:esp32:esp32', port: 'MOCK_CSB1', protocol: 'serial' },
+    { name: 'Arduino Mega 2560', fqbn: 'arduino:avr:mega:cpu=atmega2560', port: 'MOCK_MEGA', protocol: 'serial' },
+    { name: 'Arduino Uno', fqbn: 'arduino:avr:uno', port: 'MOCK_UNO', protocol: 'serial' },
+    { name: 'Arduino Nano', fqbn: 'arduino:avr:nano', port: 'MOCK_NANO', protocol: 'serial' },
+    { name: 'Arduino Nano Every', fqbn: 'arduino:megaavr:nona4809', port: 'MOCK_NANO_EVERY', protocol: 'serial' },
+    { name: 'ESP32 (CP2102)', fqbn: 'esp32:esp32:esp32', port: 'MOCK_ESP32', protocol: 'serial' },
+    { name: 'CH340 Serial (Nano/Mega clone)', fqbn: '', port: 'MOCK_CH340', protocol: 'serial' },
+    { name: 'FTDI Serial Adapter', fqbn: '', port: 'MOCK_FTDI', protocol: 'serial' },
 ]
 
 export class DeviceWizard {

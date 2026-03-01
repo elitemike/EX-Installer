@@ -14,7 +14,7 @@ const SOURCE_REPO = path.join(os.homedir(), 'ex-installer', 'repos', 'CommandSta
 // Scratch dir mirrors what the GUI creates: _build/<id>/CommandStation-EX
 // The directory name MUST match the .ino filename (Arduino CLI requirement).
 const SCRATCH_BASE = path.join(os.tmpdir(), 'ex-installer-test-build')
-const REPO         = path.join(SCRATCH_BASE, 'CommandStation-EX')
+const REPO = path.join(SCRATCH_BASE, 'CommandStation-EX')
 
 // Arduino Mega on Prod branch — fully supported and compiles reliably.
 // NOTE: ESP32-S3 / CSB1 support is split across two unmerged dev branches
@@ -33,14 +33,14 @@ const MEGA_CONFIG_H = `\
 `
 
 /** Source-file extensions the GUI copies (excludes .example / .template). */
-const ALLOWED_EXTS    = ['.ino', '.cpp', '.h']
+const ALLOWED_EXTS = ['.ino', '.cpp', '.h']
 const ALLOWED_SUBDIRS = ['src', 'libraries']
 
 async function copySourceFiles(src: string, dest: string): Promise<void> {
     await fs.mkdir(dest, { recursive: true })
     const entries = await fs.readdir(src, { withFileTypes: true })
     for (const entry of entries) {
-        const srcPath  = path.join(src,  entry.name)
+        const srcPath = path.join(src, entry.name)
         const destPath = path.join(dest, entry.name)
         if (entry.isDirectory() && ALLOWED_SUBDIRS.includes(entry.name)) {
             await copySourceFiles(srcPath, destPath)
