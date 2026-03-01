@@ -54,17 +54,23 @@ function createWindow(): BrowserWindow {
     win.on('ready-to-show', () => {
         win.show()
         if (process.env['ELECTRON_RENDERER_URL']) {
-            win.webContents.openDevTools()
+            //win.webContents.openDevTools()
         }
     })
 
     // F5 or Ctrl+R / Cmd+R → reload the renderer
+    // F12 or Ctrl+Shift+I / Cmd+Option+I → toggle DevTools
     win.webContents.on('before-input-event', (_event, input) => {
+        if (input.type !== 'keyDown') return
         const reload =
-            input.type === 'keyDown' &&
-            (input.key === 'F5' ||
-                ((input.control || input.meta) && input.key === 'r'))
-        if (reload) win.webContents.reload()
+            input.key === 'F5' ||
+            ((input.control || input.meta) && input.key === 'r')
+        if (reload) { win.webContents.reload(); return }
+
+        const devtools =
+            input.key === 'F12' ||
+            ((input.control || input.meta) && input.shift && input.key === 'I')
+        if (devtools) win.webContents.toggleDevTools()
     })
 
     // Open external links in the OS browser, not in Electron
