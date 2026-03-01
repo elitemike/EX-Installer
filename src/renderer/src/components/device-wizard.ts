@@ -9,8 +9,29 @@ import { FileService } from '../services/file.service'
 import { PreferencesService } from '../services/preferences.service'
 import { productDetails, extractVersionDetails } from '../models/product-details'
 import type { ArduinoCliBoardInfo } from '../../../types/ipc'
-import { KNOWN_BOARDS } from '../views/select-device'
 import type { SavedConfiguration } from '../models/saved-configuration'
+
+/**
+ * Known USB Vendor/Product IDs → human-readable board name.
+ * Used as a fallback when Arduino CLI doesn't recognise a detected serial port.
+ */
+const KNOWN_BOARDS: Record<string, string> = {
+    '2341:0042': 'Arduino Mega 2560',
+    '2341:0010': 'Arduino Mega 2560',
+    '2341:0242': 'Arduino Mega 2560 (DFU)',
+    '2341:0043': 'Arduino Uno',
+    '2341:0001': 'Arduino Uno',
+    '2341:0243': 'Arduino Uno (DFU)',
+    '2341:0058': 'Arduino Nano',
+    '2341:0037': 'Arduino Nano Every',
+    '1a86:7523': 'CH340 Serial (Nano/Mega clone)',
+    '10c4:ea60': 'CP2102 Serial (ESP32)',
+    '0403:6001': 'FTDI Serial Adapter',
+    '0403:6015': 'FTDI Serial Adapter',
+    '0483:374b': 'STM32 Nucleo (ST-Link)',
+    '0483:3748': 'STM32 ST-Link V2',
+    '303a:1001': 'EX-CSB1 (DCC-EX CommandStation Board 1)',
+}
 
 /** All board types the installer knows about — shown in mock mode instead of real USB scan. */
 const MOCK_ALL_BOARDS: ArduinoCliBoardInfo[] = [
