@@ -2,6 +2,8 @@ import { resolve } from 'aurelia'
 import { Router } from '@aurelia/router'
 import { IDialogService } from '@aurelia/dialog'
 import { InstallerState } from '../models/installer-state'
+import { ConfigEditorState } from '../models/config-editor-state'
+import { friendlyName } from '../utils/friendly-names'
 import { PreferencesService } from '../services/preferences.service'
 import { FileService } from '../services/file.service'
 import { ArduinoCliService } from '../services/arduino-cli.service'
@@ -14,6 +16,7 @@ export class Workspace {
     private readonly router = resolve(Router)
     private readonly dialogService = resolve(IDialogService)
     readonly state = resolve(InstallerState)
+    readonly configEditorState = resolve(ConfigEditorState)
     private readonly preferences = resolve(PreferencesService)
     private readonly files = resolve(FileService)
     private readonly cli = resolve(ArduinoCliService)
@@ -22,7 +25,14 @@ export class Workspace {
     // ── Active config file being edited ─────────────────────────────────────
     activeFileIndex = 0
 
+    readonly friendlyName = friendlyName
+
     isMock = false
+
+    // ── New custom file input ──────────────────────────────────────────────
+    showNewFileInput = false
+    newFileName = ''
+    newFileError = ''
 
     // ── Compile / upload state ───────────────────────────────────────────────
     isCompiling = false
@@ -44,6 +54,7 @@ export class Workspace {
         }
         await this.loadSavedConfigs()
         await this.refreshConfigFilesFromDisk()
+        this.configEditorState.loadFromInstallerState()
     }
 
     /**
@@ -87,6 +98,80 @@ export class Workspace {
 
     syncContent(): void {
         // content is already two-way bound via textarea; nothing extra needed
+    }
+
+    // ── Custom file management ────────────────────────────────────────────────
+    startNewFile(): void {
+        this.newFileName = ''
+        this.newFileError = ''
+        this.showNewFileInput = true
+    }
+
+    cancelNewFile(): void {
+        this.showNewFileInput = false
+        this.newFileName = ''
+        this.newFileError = ''
+    }
+
+    confirmNewFile(): void {
+        let name = this.newFileName.trim()
+        if (!name) {
+            this.newFileError = 'Name is required.'
+            return
+        }
+        // Auto-append .h if no extension
+        if (!name.includes('.')) name = name + '.h'
+        const reserved = ['config.h', 'myRoster.h', 'myTurnouts.h', 'myAutomation.h']
+        if (reserved.includes(name)) {
+            this.newFileError = `"${name}" is a reserved file name.`
+            return
+        }
+        if (this.state.configFiles.some(f => f.name === name)) {
+            this.newFileError = `"${name}" already exists.`
+            return
+        }
+        this.configEditorState.addCustomFile(name)
+        // Select the newly created file
+        const newIndex = this.state.configFiles.findIndex(f => f.name === name)
+        if (newIndex !== -1) this.activeFileIndex = newIndex
+        this.cancelNewFile()
+    }
+
+    handleNewFileKeydown(event: KeyboardEvent): void {
+        if (event.key === 'Enter') this.confirmNewFile()
+        if (event.key === 'Escape') this.cancelNewFile()
+    }
+
+    async removeCustomFile(index: number, event: Event): Promise<void> {
+        event.stopPropagation()
+        const file = this.state.configFiles[index]
+        if (!file || !this.configEditorState.isCustomFile(file.name)) return
+        const confirmed = await this._confirm(
+            'Delete File',
+            `Are you sure you want to delete "${file.name}"? This cannot be undone.`,
+        )
+        if (!confirmed) return
+        this.configEditorState.removeCustomFile(file.name)
+        // Keep active index in bounds
+        if (this.activeFileIndex >= this.state.configFiles.length) {
+            this.activeFileIndex = Math.max(0, this.state.configFiles.length - 1)
+        }
+        // Persist the deletion immediately so it survives a refresh
+        void this.updateSavedConfig()
+    }
+
+    private async _confirm(title: string, message: string): Promise<boolean> {
+        try {
+            const { dialog } = await this.dialogService.open({
+                component: () =>
+                    import('../components/confirm-dialog').then(m => m.ConfirmDialog).catch(() => null),
+                model: { title, message },
+            })
+            const result = await dialog.closed
+            return result.status === 'ok'
+        } catch {
+            return window.confirm(`${title}\n\n${message}`)
+        }
     }
 
     async saveFiles(): Promise<void> {

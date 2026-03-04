@@ -1,0 +1,61 @@
+<template>
+    <div class="flex flex-col flex-1 overflow-hidden" style="min-height:0;">
+
+        <!-- config.h → config-h-editor -->
+        <div if.bind="isConfigH" class="flex flex-col flex-1 overflow-hidden">
+            <config-h-editor></config-h-editor>
+        </div>
+
+        <!-- myRoster.h → roster-editor -->
+        <div if.bind="isRoster" class="flex flex-col flex-1 overflow-hidden">
+            <roster-editor></roster-editor>
+        </div>
+
+        <!-- myTurnouts.h → turnout-editor -->
+        <div if.bind="isTurnouts" class="flex flex-col flex-1 overflow-hidden">
+            <turnout-editor></turnout-editor>
+        </div>
+
+        <!-- myAutomation.h → read-only Monaco preview -->
+        <div if.bind="isAutomation" class="flex flex-col h-full">
+            <div class="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-gray-900/60 shrink-0">
+                <svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2z" />
+                </svg>
+                <span class="text-sm font-semibold text-white">Automation</span>
+                <span class="text-xs text-gray-600 font-mono">myAutomation.h</span>
+                <span
+                    class="px-2 py-0.5 rounded text-xs bg-green-500/10 text-green-400 border border-green-500/20">Auto-generated</span>
+                <span class="ml-auto text-xs text-gray-600">Managed by EX-Installer — read only</span>
+            </div>
+            <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <monaco-editor value.bind="automationPreview" language="cpp" readonly.bind="true"
+                    filename="myAutomation.h"></monaco-editor>
+            </div>
+        </div>
+
+        <!-- Generic / unknown file → plain Monaco editor -->
+        <div if.bind="isGeneric && activeFile" class="flex flex-col flex-1 min-h-0">
+            <div class="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-gray-900/60 shrink-0">
+                <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l5 5v11a2 2 0 01-2 2z" />
+                </svg>
+                <span class="text-sm font-semibold text-white">${friendlyName(activeFile.name)}</span>
+                <span class="text-xs text-gray-600 font-mono"
+                    if.bind="friendlyName(activeFile.name) !== activeFile.name">${activeFile.name}</span>
+            </div>
+            <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <monaco-editor value.two-way="genericContent" language="cpp"
+                    filename.bind="activeFile.name"></monaco-editor>
+            </div>
+        </div>
+
+        <!-- No file selected -->
+        <div if.bind="!activeFile" class="h-full flex items-center justify-center text-gray-600 text-sm">
+            No configuration file selected.
+        </div>
+
+    </div>
+</template>

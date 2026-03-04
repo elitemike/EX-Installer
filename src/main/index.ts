@@ -70,12 +70,20 @@ function createWindow(): BrowserWindow {
 
     // F5 or Ctrl+R / Cmd+R → reload the renderer
     // F12 or Ctrl+Shift+I / Cmd+Option+I → toggle DevTools
-    win.webContents.on('before-input-event', (_event, input) => {
+    win.webContents.on('before-input-event', (event, input) => {
         if (input.type !== 'keyDown') return
         const reload =
             input.key === 'F5' ||
             ((input.control || input.meta) && input.key === 'r')
-        if (reload) { win.webContents.reload(); return }
+        if (reload) {
+            event.preventDefault()   // stop Chromium's built-in reload (would restore the hash URL)
+            if (process.env['ELECTRON_RENDERER_URL']) {
+                win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+            } else {
+                win.loadFile(join(__dirname, '../renderer/index.html'))
+            }
+            return
+        }
 
         const devtools =
             input.key === 'F12' ||

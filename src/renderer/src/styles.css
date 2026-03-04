@@ -1,9 +1,40 @@
+@import "@fontsource/roboto/300.css";
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/500.css";
+@import "@fontsource/roboto/700.css";
 @import "tailwindcss";
 @import "@syncfusion/ej2-base/styles/tailwind.css";
 @import "@syncfusion/ej2-buttons/styles/tailwind.css";
+@import "@syncfusion/ej2-layouts/styles/tailwind-dark.css";
 @import "@syncfusion/ej2-navigations/styles/tailwind.css";
 @import "@syncfusion/ej2-navigations/styles/stepper/tailwind.css";
 
+/* ── Set Roboto as the global font ────────────────────────────────────── */
+@theme {
+    --font-sans: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+}
+
+body,
+* {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Custom element host sizing ───────────────────────────────────────── */
+/* Aurelia renders custom elements as inline by default; make them fill   */
+/* their flex parent so height cascades correctly down to Monaco.          */
+file-editor-panel,
+roster-editor,
+turnout-editor,
+config-h-editor,
+monaco-editor {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+}
 
 /* ── @aurelia/dialog native <dialog> reset ─────────────────────────────── */
 /* Strip browser chrome but preserve margin:auto so showModal() centers it */

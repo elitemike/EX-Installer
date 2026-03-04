@@ -17,6 +17,15 @@ import { UsbService } from './services/usb.service'
 
 // State
 import { InstallerState } from './models/installer-state'
+import { ConfigEditorState } from './models/config-editor-state'
+
+// Config editor components
+import { MonacoEditorCustomElement } from './components/monaco-editor'
+import { RosterEditorCustomElement } from './components/roster-editor'
+import { TurnoutEditorCustomElement } from './components/turnout-editor'
+import { ConfigHEditorCustomElement } from './components/config-h-editor'
+import { FileEditorPanelCustomElement } from './components/file-editor-panel'
+import { ConfirmDialog } from './components/confirm-dialog'
 
 registerLicense(syncfusionLicense)
 
@@ -34,6 +43,14 @@ new Aurelia()
         Registration.singleton(PythonService, PythonService),
         Registration.singleton(UsbService, UsbService),
         Registration.singleton(InstallerState, InstallerState),
+        Registration.singleton(ConfigEditorState, ConfigEditorState),
+        // Config editor custom elements
+        MonacoEditorCustomElement,
+        RosterEditorCustomElement,
+        TurnoutEditorCustomElement,
+        ConfigHEditorCustomElement,
+        FileEditorPanelCustomElement,
+        ConfirmDialog,
     )
     .app(App)
     .start()

@@ -2,6 +2,7 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import aurelia from '@aurelia/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
+import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 
 export default defineConfig({
     // ── Main process ──────────────────────────────────────────────────────────
@@ -36,6 +37,9 @@ export default defineConfig({
                 // correctly relative to process.cwd() (which is src/).
                 include: resolve(__dirname, 'renderer/src/**/*.{ts,js,html}'),
                 useDev: false,
+            }),
+            (monacoEditorPlugin as unknown as typeof monacoEditorPlugin.default).default({
+                languageWorkers: ['editorWorkerService'],
             }),
         ],
         resolve: {
