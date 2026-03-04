@@ -4,17 +4,23 @@ import {
     ICustomElementViewModel,
 } from 'aurelia'
 import * as monaco from 'monaco-editor'
+import { getCompletions } from '../config/file-configs'
 
-// Register DCC-EX language completions once per app lifetime
-let completionsRegistered = false
+// ── Global filename-aware completion + hover providers (registered once) ──────
+// Stored on `window` so Vite HMR module re-evaluation cannot reset the flag.
+const WIN = window as Window & { __dccexProvidersRegistered?: boolean }
 
-function registerDCCEXCompletions(): void {
-    if (completionsRegistered) return
-    completionsRegistered = true
+function registerProviders(): void {
+    if (WIN.__dccexProvidersRegistered) return
+    WIN.__dccexProvidersRegistered = true
 
-    // Completion provider for ROSTER / SERVO_TURNOUT macros
+    // Completion — returns snippets for the file currently open in this model
     monaco.languages.registerCompletionItemProvider('cpp', {
         provideCompletionItems(model, position) {
+            const filename = model.uri.path.replace(/^\//, '')
+            const snippets = getCompletions(filename)
+            if (!snippets.length) return { suggestions: [] }
+
             const word = model.getWordUntilPosition(position)
             const range = {
                 startLineNumber: position.lineNumber,
@@ -22,64 +28,40 @@ function registerDCCEXCompletions(): void {
                 startColumn: word.startColumn,
                 endColumn: word.endColumn,
             }
-            const suggestions: monaco.languages.CompletionItem[] = [
-                {
-                    label: 'ROSTER',
+
+            return {
+                suggestions: snippets.map(s => ({
+                    label: s.label,
                     kind: monaco.languages.CompletionItemKind.Function,
-                    documentation: 'Define a locomotive roster entry.',
-                    detail: 'ROSTER(id, "Name", "Fn0/Fn1/...")',
-                    insertText: 'ROSTER(${1:dccAddress}, "${2:Loco Name}", "${3:Fn0/Fn1/Fn2}")',
+                    detail: s.detail,
+                    documentation: s.documentation,
+                    insertText: s.insertText,
                     insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                     range,
-                },
-                {
-                    label: 'SERVO_TURNOUT',
-                    kind: monaco.languages.CompletionItemKind.Function,
-                    documentation: 'Define a servo-controlled turnout.',
-                    detail: 'SERVO_TURNOUT(id, pin, activeAngle, inactiveAngle, profile, "desc")',
-                    insertText:
-                        'SERVO_TURNOUT(${1:id}, ${2:pin}, ${3:400}, ${4:100}, ${5|Instant,Fast,Medium,Slow,Bounce|}, "${6:description}")',
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    range,
-                },
-            ]
-            return { suggestions }
+                })),
+            }
         },
     })
 
-    // Hover provider
+    // Hover — looks up hover doc from the same config for the active file
     monaco.languages.registerHoverProvider('cpp', {
         provideHover(model, position) {
+            const filename = model.uri.path.replace(/^\//, '')
+            const snippets = getCompletions(filename)
             const word = model.getWordAtPosition(position)
             if (!word) return null
 
-            if (word.word === 'ROSTER') {
-                return {
-                    contents: [
-                        { value: '**ROSTER Macro**' },
-                        { value: 'Define a locomotive roster entry.' },
-                        {
-                            value: '```cpp\nROSTER(RosterId, "Loco Name", "Fn0/Fn1/Fn2")\n```',
-                        },
-                        { value: 'Use `*` prefix for momentary functions: `"Lights/*Bell/*Whistle"`' },
-                    ],
-                }
-            }
+            const match = snippets.find(s => s.label === word.word)
+            if (!match?.hover) return null
 
-            if (word.word === 'SERVO_TURNOUT') {
-                return {
-                    contents: [
-                        { value: '**SERVO_TURNOUT Macro**' },
-                        { value: 'Define a servo-controlled turnout / point.' },
-                        {
-                            value: '```cpp\nSERVO_TURNOUT(id, pin, activeAngle, inactiveAngle, profile, "desc")\n```',
-                        },
-                        { value: 'Profiles: `Instant` `Fast` `Medium` `Slow` `Bounce`' },
-                    ],
-                }
-            }
-
-            return null
+            const h = match.hover
+            const contents: monaco.IMarkdownString[] = [
+                { value: `**${h.title}**` },
+                { value: h.description },
+            ]
+            if (h.example) contents.push({ value: `\`\`\`cpp\n${h.example}\n\`\`\`` })
+            if (h.note) contents.push({ value: h.note })
+            return { contents }
         },
     })
 }
@@ -109,9 +91,24 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
     private debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     attached(): void {
-        registerDCCEXCompletions()
+        registerProviders()
 
-        this.model = monaco.editor.createModel(this.value ?? '', this.language)
+        // Use a URI based on filename so completion/hover providers can identify
+        // which file is active and return the correct per-file suggestions.
+        const uri = this.filename
+            ? monaco.Uri.file(this.filename)
+            : undefined
+
+        // Reuse an existing model for this URI if one already exists (e.g. the
+        // same file re-opened after navigation), otherwise create a fresh one.
+        this.model = uri
+            ? monaco.editor.getModel(uri) ?? monaco.editor.createModel(this.value ?? '', this.language, uri)
+            : monaco.editor.createModel(this.value ?? '', this.language)
+
+        // Sync value in case the model was reused with stale content
+        if (this.model.getValue() !== (this.value ?? '')) {
+            this.model.setValue(this.value ?? '')
+        }
 
         this.editor = monaco.editor.create(this.container, {
             model: this.model,
@@ -122,7 +119,7 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             fontSize: 13,
             lineHeight: 20,
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
-            minimap: { enabled: false },
+            minimap: { enabled: true },
             scrollBeyondLastLine: false,
             wordWrap: 'on',
             renderLineHighlight: 'all',
@@ -130,7 +127,7 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             scrollbar: {
                 verticalScrollbarSize: 8,
                 horizontalScrollbarSize: 8,
-            },
+            }
         })
 
         // Force layout after the DOM has fully settled (fixes height:100% chains in flex)
@@ -151,11 +148,36 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
         })
     }
 
+    /**
+     * Immediately cancels the debounce and pushes the current editor text into
+     * the two-way `value` binding. Call this before reading `value` from outside
+     * (e.g. when switching from Raw to Visual) to guarantee up-to-date content.
+     */
+    flush(): void {
+        if (!this.model) return
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer)
+            this.debounceTimer = null
+        }
+        const text = this.model.getValue()
+        if (this.value !== text) {
+            this.value = text
+            this.container?.dispatchEvent(
+                new CustomEvent('change', { detail: text, bubbles: true }),
+            )
+        }
+    }
+
     detaching(): void {
         if (this.debounceTimer) clearTimeout(this.debounceTimer)
         this.changeDisposable?.dispose()
         this.editor?.dispose()
-        this.model?.dispose()
+        // Only dispose the text model if it has no URI — URI models are cached by
+        // Monaco and reused on re-attach, so disposing them causes a re-create
+        // on the next visit and accumulates stale state.
+        if (!this.model?.uri.path || this.model.uri.path === '/') {
+            this.model?.dispose()
+        }
         this.editor = null
         this.model = null
     }

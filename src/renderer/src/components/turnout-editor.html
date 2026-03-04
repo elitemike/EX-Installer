@@ -179,7 +179,7 @@
 
         <!-- ── Raw tab ────────────────────────────────────────────────────── -->
         <div if.bind="activeTab === 'raw'" class="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <monaco-editor value.two-way="rawContent" language="cpp" filename="myTurnouts.h"
+            <monaco-editor component.ref="rawEditor" value.two-way="rawContent" language="cpp" filename="myTurnouts.h"
                 change.trigger="onRawChange($event)"></monaco-editor>
         </div>
 

@@ -20,6 +20,17 @@ export class TurnoutEditorCustomElement {
         if (tab === 'raw' && this.editBuffer !== null) {
             this.commitBuffer()
         }
+        // When leaving raw, flush any pending edits the debounce may not have
+        // delivered yet, then refresh the edit buffer from the updated state.
+        if (tab === 'visual' && this.activeTab === 'raw') {
+            this.rawEditor?.flush()   // cancels debounce, pushes latest text → rawContent
+            this.state.setTurnoutsFromRaw(this.rawContent)
+            if (this.editBufferIndex !== null) {
+                const fresh = this.state.turnouts[this.editBufferIndex]
+                if (fresh) this._setBuffer(this.editBufferIndex, fresh)
+                else this.clearBuffer()
+            }
+        }
         this.activeTab = tab
         if (tab === 'raw') this._refreshRaw()
     }
@@ -55,6 +66,8 @@ export class TurnoutEditorCustomElement {
     private _saveSidebarWidth(size: string): void {
         try { localStorage.setItem('turnout-editor-sidebar-width', size) } catch { /* ignore */ }
     }
+
+    private rawEditor: { flush(): void } | null = null
 
     // ── Raw content for Monaco ────────────────────────────────────────────────
     rawContent = ''

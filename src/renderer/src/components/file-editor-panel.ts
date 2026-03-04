@@ -19,27 +19,28 @@ export class FileEditorPanelCustomElement {
         return this.installer.configFiles[this.activeFileIndex] ?? null
     }
 
-    get isConfigH(): boolean {
-        return this.activeFile?.name === 'config.h'
-    }
-
-    get isRoster(): boolean {
-        return this.activeFile?.name === 'myRoster.h'
-    }
-
-    get isTurnouts(): boolean {
-        return this.activeFile?.name === 'myTurnouts.h'
-    }
-
-    get isAutomation(): boolean {
-        return this.activeFile?.name === 'myAutomation.h'
-    }
-
     readonly friendlyName = friendlyName
 
-    get isGeneric(): boolean {
-        return !this.isConfigH && !this.isRoster && !this.isTurnouts && !this.isAutomation
+    /**
+     * Single discriminant — exactly one branch in the template reads from this,
+     * so it is structurally impossible for two panes to be visible at the same time.
+     */
+    get currentView(): 'configH' | 'roster' | 'turnouts' | 'automation' | 'generic' | 'none' {
+        const name = this.activeFile?.name
+        if (!name) return 'none'
+        if (name === 'config.h') return 'configH'
+        if (name === 'myRoster.h') return 'roster'
+        if (name === 'myTurnouts.h') return 'turnouts'
+        if (name === 'myAutomation.h') return 'automation'
+        return 'generic'
     }
+
+    // Keep old getters so nothing else breaks
+    get isConfigH(): boolean { return this.currentView === 'configH' }
+    get isRoster(): boolean { return this.currentView === 'roster' }
+    get isTurnouts(): boolean { return this.currentView === 'turnouts' }
+    get isAutomation(): boolean { return this.currentView === 'automation' }
+    get isGeneric(): boolean { return this.currentView === 'generic' }
 
     // Raw content for generic files — getter/setter so two-way binding works
     get genericContent(): string {

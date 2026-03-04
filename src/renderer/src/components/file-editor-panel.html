@@ -2,22 +2,22 @@
     <div class="flex flex-col flex-1 overflow-hidden" style="min-height:0;">
 
         <!-- config.h → config-h-editor -->
-        <div if.bind="isConfigH" class="flex flex-col flex-1 overflow-hidden">
+        <div if.bind="currentView === 'configH'" class="flex flex-col flex-1 overflow-hidden">
             <config-h-editor></config-h-editor>
         </div>
 
         <!-- myRoster.h → roster-editor -->
-        <div if.bind="isRoster" class="flex flex-col flex-1 overflow-hidden">
+        <div if.bind="currentView === 'roster'" class="flex flex-col flex-1 overflow-hidden">
             <roster-editor></roster-editor>
         </div>
 
         <!-- myTurnouts.h → turnout-editor -->
-        <div if.bind="isTurnouts" class="flex flex-col flex-1 overflow-hidden">
+        <div if.bind="currentView === 'turnouts'" class="flex flex-col flex-1 overflow-hidden">
             <turnout-editor></turnout-editor>
         </div>
 
         <!-- myAutomation.h → read-only Monaco preview -->
-        <div if.bind="isAutomation" class="flex flex-col h-full">
+        <div if.bind="currentView === 'automation'" class="flex flex-col h-full">
             <div class="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-gray-900/60 shrink-0">
                 <svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -36,7 +36,7 @@
         </div>
 
         <!-- Generic / unknown file → plain Monaco editor -->
-        <div if.bind="isGeneric && activeFile" class="flex flex-col flex-1 min-h-0">
+        <div if.bind="currentView === 'generic' && activeFile" class="flex flex-col flex-1 min-h-0">
             <div class="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-gray-900/60 shrink-0">
                 <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -53,7 +53,7 @@
         </div>
 
         <!-- No file selected -->
-        <div if.bind="!activeFile" class="h-full flex items-center justify-center text-gray-600 text-sm">
+        <div if.bind="currentView === 'none'" class="h-full flex items-center justify-center text-gray-600 text-sm">
             No configuration file selected.
         </div>
 

@@ -160,8 +160,7 @@
                     </div>
                 </div>
 
-                <div repeat.for="file of state.configFiles"
-                    click.trigger="setActiveFile($index)"
+                <div repeat.for="file of state.configFiles" click.trigger="setActiveFile($index)"
                     class="group flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors border-l-2"
                     class.bind="activeFileIndex === $index
                         ? 'border-blue-500 bg-blue-950/40 text-white'
