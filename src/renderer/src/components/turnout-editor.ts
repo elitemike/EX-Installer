@@ -7,7 +7,7 @@ import type { Turnout, TurnoutProfile } from '../utils/myAutomationParser'
 type ViewTab = 'visual' | 'raw'
 
 export class TurnoutEditorCustomElement {
-    private readonly state = resolve(ConfigEditorState)
+    readonly state = resolve(ConfigEditorState)
     private readonly dialogService = resolve(IDialogService)
     private splitterObj: Splitter | null = null
 
@@ -20,19 +20,19 @@ export class TurnoutEditorCustomElement {
         if (tab === 'raw' && this.editBuffer !== null) {
             this.commitBuffer()
         }
-        // When leaving raw, flush any pending edits the debounce may not have
-        // delivered yet, then refresh the edit buffer from the updated state.
         if (tab === 'visual' && this.activeTab === 'raw') {
-            this.rawEditor?.flush()   // cancels debounce, pushes latest text → rawContent
-            this.state.setTurnoutsFromRaw(this.rawContent)
+            const text = this.rawEditor?.flush() ?? ''
+            if (text) this.state.setTurnoutsFromRaw(text)
             if (this.editBufferIndex !== null) {
                 const fresh = this.state.turnouts[this.editBufferIndex]
                 if (fresh) this._setBuffer(this.editBufferIndex, fresh)
                 else this.clearBuffer()
             }
         }
+        if (tab === 'raw') {
+            this.rawSnapshot = this.state.turnoutsRaw
+        }
         this.activeTab = tab
-        if (tab === 'raw') this._refreshRaw()
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────
@@ -56,6 +56,12 @@ export class TurnoutEditorCustomElement {
     }
 
     detaching(): void {
+        if (this.activeTab === 'raw') {
+            const text = this.rawEditor?.flush() ?? ''
+            if (text) this.state.setTurnoutsFromRaw(text)
+        } else if (this.editBuffer !== null) {
+            this.commitBuffer()
+        }
         this.splitterObj?.destroy()
         this.splitterObj = null
     }
@@ -67,24 +73,17 @@ export class TurnoutEditorCustomElement {
         try { localStorage.setItem('turnout-editor-sidebar-width', size) } catch { /* ignore */ }
     }
 
-    private rawEditor: { flush(): void } | null = null
+    // ── Raw snapshot for Monaco ───────────────────────────────────────────────
+    rawEditor: { flush(): string } | null = null
+    rawSnapshot = ''
 
-    // ── Raw content for Monaco ────────────────────────────────────────────────
-    rawContent = ''
-
-    private _refreshRaw(): void {
-        this.rawContent = this.state.turnoutsRaw
-    }
-
-    onRawChange(event: CustomEvent<string>): void {
-        this.state.setTurnoutsFromRaw(event.detail)
+    // Arrow function so it can be passed as a bindable callback without losing `this`.
+    onRawChange = (text: string): void => {
+        this.state.setTurnoutsFromRaw(text)
         if (this.editBufferIndex !== null) {
             const fresh = this.state.turnouts[this.editBufferIndex]
-            if (fresh) {
-                this._setBuffer(this.editBufferIndex, fresh)
-            } else {
-                this.clearBuffer()
-            }
+            if (fresh) this._setBuffer(this.editBufferIndex, fresh)
+            else this.clearBuffer()
         }
     }
 
@@ -115,7 +114,6 @@ export class TurnoutEditorCustomElement {
     commitBuffer(): void {
         if (this.editBuffer === null || this.editBufferIndex === null) return
         this.state.updateTurnoutEntry(this.editBufferIndex, { ...this.editBuffer })
-        if (this.activeTab === 'raw') this._refreshRaw()
     }
 
     // ── Field blur handlers (commit on leave) ─────────────────────────────────
@@ -147,7 +145,6 @@ export class TurnoutEditorCustomElement {
         this.state.addTurnoutEntry(newEntry)
         const idx = this.state.turnouts.length - 1
         this._setBuffer(idx, this.state.turnouts[idx])
-        if (this.activeTab === 'raw') this._refreshRaw()
     }
 
     async removeEntryByIndex(index: number, event?: Event): Promise<void> {
@@ -161,7 +158,6 @@ export class TurnoutEditorCustomElement {
             this.editBufferIndex--
         }
         this.state.removeTurnoutEntry(index)
-        if (this.activeTab === 'raw') this._refreshRaw()
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

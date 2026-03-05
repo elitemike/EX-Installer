@@ -82,6 +82,8 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
     @bindable language = 'cpp'
     @bindable readonly = false
     @bindable filename = ''
+    /** Called directly (no DOM event) each time the debounced content changes. */
+    @bindable onTextChange: ((text: string) => void) | null = null
 
     private container!: HTMLElement
     private editor: monaco.editor.IStandaloneCodeEditor | null = null
@@ -141,6 +143,7 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             this.debounceTimer = setTimeout(() => {
                 const text = this.model!.getValue()
                 this.value = text
+                this.onTextChange?.(text)
                 this.container.dispatchEvent(
                     new CustomEvent('change', { detail: text, bubbles: true }),
                 )
@@ -150,11 +153,12 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
 
     /**
      * Immediately cancels the debounce and pushes the current editor text into
-     * the two-way `value` binding. Call this before reading `value` from outside
-     * (e.g. when switching from Raw to Visual) to guarantee up-to-date content.
+     * the two-way `value` binding. Returns the current editor text so callers
+     * can use it directly without relying on the two-way binding having
+     * propagated yet (Aurelia's binding flush may be deferred).
      */
-    flush(): void {
-        if (!this.model) return
+    flush(): string {
+        if (!this.model) return this.value
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer)
             this.debounceTimer = null
@@ -162,14 +166,21 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
         const text = this.model.getValue()
         if (this.value !== text) {
             this.value = text
+            this.onTextChange?.(text)
             this.container?.dispatchEvent(
                 new CustomEvent('change', { detail: text, bubbles: true }),
             )
         }
+        return text
     }
 
     detaching(): void {
-        if (this.debounceTimer) clearTimeout(this.debounceTimer)
+        // Flush any pending debounced change before the element is removed from
+        // the DOM.  This fires the 'change' event one final time so that parent
+        // components (e.g. roster-editor, turnout-editor) receive the latest
+        // text through their normal change.trigger handler — regardless of
+        // whether teardown was triggered by a tab switch, route change, etc.
+        this.flush()
         this.changeDisposable?.dispose()
         this.editor?.dispose()
         // Only dispose the text model if it has no URI — URI models are cached by

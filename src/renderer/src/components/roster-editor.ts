@@ -8,7 +8,7 @@ import { getRealFunctions } from '../utils/myAutomationParser'
 type ViewTab = 'visual' | 'raw'
 
 export class RosterEditorCustomElement {
-    private readonly state = resolve(ConfigEditorState)
+    readonly state = resolve(ConfigEditorState)
     private readonly dialogService = resolve(IDialogService)
     private splitterObj: Splitter | null = null
 
@@ -19,21 +19,22 @@ export class RosterEditorCustomElement {
         if (tab === 'raw' && this.editBuffer !== null) {
             this.commitBuffer()
         }
-        // When leaving raw, flush any pending edits the debounce may not have
-        // delivered yet, then refresh the edit buffer from the updated state.
         if (tab === 'visual' && this.activeTab === 'raw') {
-            this.rawEditor?.flush()   // cancels debounce, pushes latest text → rawContent
-            this.state.setRosterFromRaw(this.rawContent)
+            // Save synchronously BEFORE activeTab changes so Aurelia hasn't
+            // started tearing down the raw view (and its event listeners) yet.
+            const text = this.rawEditor?.flush() ?? ''
+            if (text) this.state.setRosterFromRaw(text)
+            // Refresh the visual edit buffer from the newly-parsed state.
             if (this.editBufferIndex !== null) {
                 const fresh = this.state.roster[this.editBufferIndex]
                 if (fresh) this._setBuffer(this.editBufferIndex, fresh)
                 else this.clearBuffer()
             }
         }
-        this.activeTab = tab
         if (tab === 'raw') {
-            this._refreshRaw()
+            this.rawSnapshot = this.state.rosterRaw
         }
+        this.activeTab = tab
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -57,6 +58,12 @@ export class RosterEditorCustomElement {
     }
 
     detaching(): void {
+        if (this.activeTab === 'raw') {
+            const text = this.rawEditor?.flush() ?? ''
+            if (text) this.state.setRosterFromRaw(text)
+        } else if (this.editBuffer !== null) {
+            this.commitBuffer()
+        }
         this.splitterObj?.destroy()
         this.splitterObj = null
     }
@@ -68,25 +75,17 @@ export class RosterEditorCustomElement {
         try { localStorage.setItem('roster-editor-sidebar-width', size) } catch { /* ignore */ }
     }
 
-    private rawEditor: { flush(): void } | null = null
+    // ── Raw snapshot for Monaco ───────────────────────────────────────────────
+    rawEditor: { flush(): string } | null = null
+    rawSnapshot = ''
 
-    // ── Raw content for Monaco ────────────────────────────────────────────────
-    rawContent = ''
-
-    private _refreshRaw(): void {
-        this.rawContent = this.state.rosterRaw
-    }
-
-    onRawChange(event: CustomEvent<string>): void {
-        this.state.setRosterFromRaw(event.detail)
-        // Re-derive edit buffer if the selected entry still exists
+    // Arrow function so it can be passed as a bindable callback without losing `this`.
+    onRawChange = (text: string): void => {
+        this.state.setRosterFromRaw(text)
         if (this.editBufferIndex !== null) {
             const fresh = this.state.roster[this.editBufferIndex]
-            if (fresh) {
-                this._setBuffer(this.editBufferIndex, fresh)
-            } else {
-                this.clearBuffer()
-            }
+            if (fresh) this._setBuffer(this.editBufferIndex, fresh)
+            else this.clearBuffer()
         }
     }
 
@@ -139,7 +138,6 @@ export class RosterEditorCustomElement {
             return
         }
         this.state.updateRosterEntry(this.editBufferIndex, { ...this.editBuffer })
-        if (this.activeTab === 'raw') this._refreshRaw()
         this.errorMessage = ''
     }
 
@@ -179,7 +177,6 @@ export class RosterEditorCustomElement {
         this.state.addRosterEntry(newEntry)
         const idx = this.state.roster.length - 1
         this._setBuffer(idx, this.state.roster[idx])
-        if (this.activeTab === 'raw') this._refreshRaw()
     }
 
     async removeEntryByIndex(index: number, event?: Event): Promise<void> {
@@ -193,7 +190,6 @@ export class RosterEditorCustomElement {
             this.editBufferIndex--
         }
         this.state.removeRosterEntry(index)
-        if (this.activeTab === 'raw') this._refreshRaw()
     }
 
     // ── Functions management ──────────────────────────────────────────────────

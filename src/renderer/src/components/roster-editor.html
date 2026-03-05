@@ -165,8 +165,8 @@
             </div><!-- end #roster-splitter -->
         </div><!-- end visual tab -->
         <div if.bind="activeTab === 'raw'" class="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <monaco-editor component.ref="rawEditor" value.two-way="rawContent" language="cpp" filename="myRoster.h"
-                change.trigger="onRawChange($event)"></monaco-editor>
+            <monaco-editor component.ref="rawEditor" value.to-view="rawSnapshot" language="cpp" filename="myRoster.h"
+                on-text-change.bind="onRawChange"></monaco-editor>
         </div>
 
     </div>

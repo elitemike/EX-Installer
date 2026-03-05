@@ -13,8 +13,8 @@ export class ConfigHEditorCustomElement {
         return this.state.configHContent
     }
 
-    onRawChange(event: CustomEvent<string>): void {
-        this.state.configHContent = event.detail
+    onRawChange = (text: string): void => {
+        this.state.configHContent = text
         this.state.syncConfigH()
     }
 }
