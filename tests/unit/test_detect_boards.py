@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).parent.parent.parent
 DETECT_BOARDS_PATH = REPO_ROOT / "src" / "python" / "detect_boards.py"
 
 
