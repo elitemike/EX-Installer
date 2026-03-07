@@ -4,7 +4,7 @@ import {
     generateMyAutomation,
     type CommandStationConfigOptions,
     type MyAutomationOptions,
-} from '../config/commandstation'
+} from '../../src/renderer/src/config/commandstation'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

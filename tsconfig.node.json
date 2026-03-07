@@ -1,9 +1,9 @@
 {
   "include": [
     "electron.vite.config.*",
-    "main/**/*",
-    "preload/**/*",
-    "types/**/*"
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/types/**/*"
   ],
   "compilerOptions": {
     "composite": true,

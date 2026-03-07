@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateTurntableConfig, type TurntableConfigOptions } from '../config/turntable'
+import { generateTurntableConfig, type TurntableConfigOptions } from '../../src/renderer/src/config/turntable'
 
 function baseOpts(overrides: Partial<TurntableConfigOptions> = {}): TurntableConfigOptions {
     return {

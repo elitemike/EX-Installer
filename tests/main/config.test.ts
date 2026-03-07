@@ -8,58 +8,58 @@ import { describe, it, expect, vi } from 'vitest'
 
 describe('AppConfig shape', () => {
     it('exports a config object', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config).toBeDefined()
         expect(typeof config).toBe('object')
     })
 
     it('has a window section', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window).toBeDefined()
     })
 
     it('window width is 1920', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.width).toBe(1920)
     })
 
     it('window height is 1080', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.height).toBe(1080)
     })
 
     it('window minWidth is 900', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.minWidth).toBe(900)
     })
 
     it('window minHeight is 600', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.minHeight).toBe(600)
     })
 
     it('window is resizable', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.resizable).toBe(true)
     })
 
     it('window is maximizable', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(config.window.maximizable).toBe(true)
     })
 
     it('disableHardwareAcceleration is boolean', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(typeof config.disableHardwareAcceleration).toBe('boolean')
     })
 
     it('disableDBus is boolean', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(typeof config.disableDBus).toBe('boolean')
     })
 
     it('disableMediaSession is boolean', async () => {
-        const { config } = await import('../config')
+        const { config } = await import('../../src/main/config')
         expect(typeof config.disableMediaSession).toBe('boolean')
     })
 })
@@ -83,7 +83,7 @@ describe('bool() helper via env-var overrides', () => {
 
         // Clear module cache so config is re-evaluated with updated env vars
         vi.resetModules()
-        const mod = await import('../config')
+        const mod = await import('../../src/main/config')
 
         // Restore env
         for (const [k, v] of Object.entries(saved)) {

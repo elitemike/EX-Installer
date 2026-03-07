@@ -6,6 +6,7 @@
     "main": "out/main/index.js",
     "scripts": {
         "dev": "electron-vite dev",
+        "dev:mock": "electron-vite dev -- --mock",
         "debug": "electron-vite dev --inspect=9229",
         "build": "electron-vite build",
         "preview": "electron-vite preview",
@@ -14,7 +15,8 @@
         "lint": "eslint src --ext .ts,.html",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:e2e": "pnpm build && playwright test"
+        "test:e2e": "pnpm build && playwright test",
+        "test:all": "pnpm test && pnpm test:e2e"
     },
     "dependencies": {
         "@aurelia/dialog": "2.0.0-rc.0",
@@ -61,7 +63,7 @@
         ],
         "extraResources": [
             {
-                "from": "python",
+                "from": "src/python",
                 "to": "python"
             }
         ],

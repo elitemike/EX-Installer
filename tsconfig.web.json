@@ -1,8 +1,8 @@
 {
   "include": [
-    "renderer/src/**/*",
-    "renderer/src/**/*.html",
-    "types/**/*"
+    "src/renderer/src/**/*",
+    "src/renderer/src/**/*.html",
+    "src/types/**/*"
   ],
   "compilerOptions": {
     "composite": true,

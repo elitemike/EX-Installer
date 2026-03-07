@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateIOExpanderConfig, type IOExpanderConfigOptions } from '../config/ioexpander'
+import { generateIOExpanderConfig, type IOExpanderConfigOptions } from '../../src/renderer/src/config/ioexpander'
 
 function baseOpts(overrides: Partial<IOExpanderConfigOptions> = {}): IOExpanderConfigOptions {
     return {

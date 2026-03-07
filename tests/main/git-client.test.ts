@@ -19,13 +19,14 @@ const mockGitInstance = {
     status: vi.fn(),
     reset: vi.fn(),
     clean: vi.fn(),
+    submoduleUpdate: vi.fn().mockResolvedValue(undefined),
 }
 
 vi.mock('simple-git', () => ({
     default: vi.fn(() => mockGitInstance),
 }))
 
-import { GitService } from '../git-client'
+import { GitService } from '../../src/main/git-client'
 
 function makeService() {
     return new GitService()
@@ -78,7 +79,8 @@ describe('clone()', () => {
         const svc = makeService()
         await svc.clone('https://repo.git', '/dest')
         const optionsArg = mockGitInstance.clone.mock.calls[0][2]
-        expect(optionsArg).toEqual([])
+        expect(optionsArg).not.toContain('--branch')
+        expect(optionsArg).toContain('--recurse-submodules')
     })
 })
 

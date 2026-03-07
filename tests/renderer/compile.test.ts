@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Workspace } from '../views/workspace'
-import type { InstallerState } from '../models/installer-state'
-import type { ArduinoCliService } from '../services/arduino-cli.service'
-import type { FileService } from '../services/file.service'
+import { Workspace } from '../../src/renderer/src/views/workspace'
+import type { InstallerState } from '../../src/renderer/src/models/installer-state'
+import type { ArduinoCliService } from '../../src/renderer/src/services/arduino-cli.service'
+import type { FileService } from '../../src/renderer/src/services/file.service'
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ function makeWorkspace(overrides: {
     const state = {
         selectedDevice: null,
         repoPath: null,
+        scratchPath: '/mock/scratch/CommandStation-EX',
         configFiles: [],
         savedConfigurations: [],
         activeConfigId: null,
@@ -52,12 +53,14 @@ function makeWorkspace(overrides: {
         showDeviceMenu: false,
         savedConfigs: [],
         activeFileIndex: 0,
+        configEditorState: { clearChanges: vi.fn() },
     })
 
     return ws
 }
 
 const REPO = '/home/user/ex-installer/repos/CommandStation-EX'
+const SCRATCH = '/mock/scratch/CommandStation-EX'
 
 const megaDevice = {
     name: 'Arduino Mega 2560',
@@ -91,8 +94,8 @@ describe('Workspace.compile — guard conditions', () => {
         expect((ws as any).cli.compile).not.toHaveBeenCalled()
     })
 
-    it('returns immediately when repoPath is null', async () => {
-        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: null } })
+    it('returns immediately when scratchPath is null', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, scratchPath: null } })
         await ws.compile()
         expect(ws.isCompiling).toBe(false)
         expect(ws.compileLog).toBe('')
@@ -190,14 +193,14 @@ describe('Workspace.compile — file saving before compile', () => {
         const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
         await ws.compile()
         const writeFile = (ws as any).files.writeFile as ReturnType<typeof vi.fn>
-        expect(writeFile).toHaveBeenCalledWith(`${REPO}/config.h`, configFiles[0].content)
+        expect(writeFile).toHaveBeenCalledWith(`${SCRATCH}/config.h`, configFiles[0].content)
     })
 
     it('writes myAutomation.h to the correct path', async () => {
         const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
         await ws.compile()
         const writeFile = (ws as any).files.writeFile as ReturnType<typeof vi.fn>
-        expect(writeFile).toHaveBeenCalledWith(`${REPO}/myAutomation.h`, configFiles[1].content)
+        expect(writeFile).toHaveBeenCalledWith(`${SCRATCH}/myAutomation.h`, configFiles[1].content)
     })
 
     it('writes all config files', async () => {
@@ -247,10 +250,10 @@ describe('Workspace.compile — file saving before compile', () => {
 // ── cli.compile invocation ────────────────────────────────────────────────────
 
 describe('Workspace.compile — cli.compile invocation', () => {
-    it('calls cli.compile with the correct repoPath', async () => {
+    it('calls cli.compile with the correct scratchPath', async () => {
         const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] } })
         await ws.compile()
-        expect((ws as any).cli.compile).toHaveBeenCalledWith(REPO, megaDevice.fqbn)
+        expect((ws as any).cli.compile).toHaveBeenCalledWith(SCRATCH, megaDevice.fqbn)
     })
 
     it('calls cli.compile with the correct fqbn for Mega', async () => {

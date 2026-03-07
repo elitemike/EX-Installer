@@ -12,10 +12,11 @@ import { defineConfig } from '@playwright/test'
  * a temporary directory for userData so preferences don't bleed between runs.
  */
 export default defineConfig({
-    testDir: '../tests/e2e',
+    testDir: './tests/e2e',
+    outputDir: './tests/e2e/test-results',
     timeout: 30_000,
     expect: { timeout: 10_000 },
-    reporter: [['list'], ['html', { open: 'never' }]],
+    reporter: [['list'], ['html', { outputFolder: './tests/e2e/playwright-report', open: 'never' }]],
     use: {
         // Electron E2E tests capture traces + screenshots on failure for debugging.
         screenshot: 'only-on-failure',

@@ -50,7 +50,7 @@ vi.mock('tar', () => ({
     extract: vi.fn(async () => { }),
 }))
 
-import { ArduinoCliService } from '../arduino-cli'
+import { ArduinoCliService } from '../../src/main/arduino-cli'
 import { existsSync } from 'fs'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

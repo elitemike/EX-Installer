@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { Workspace } from '../views/workspace'
-import type { InstallerState } from '../models/installer-state'
-import type { ArduinoCliService } from '../services/arduino-cli.service'
-import type { FileService } from '../services/file.service'
+import { Workspace } from '../../src/renderer/src/views/workspace'
+import type { InstallerState } from '../../src/renderer/src/models/installer-state'
+import type { ArduinoCliService } from '../../src/renderer/src/services/arduino-cli.service'
+import type { FileService } from '../../src/renderer/src/services/file.service'
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ function makeWorkspace(overrides: {
     const state = {
         selectedDevice: null,
         repoPath: null,
+        scratchPath: '/mock/scratch/CommandStation-EX',
         configFiles: [],
         savedConfigurations: [],
         activeConfigId: null,
@@ -52,6 +53,7 @@ function makeWorkspace(overrides: {
         showDeviceMenu: false,
         savedConfigs: [],
         activeFileIndex: 0,
+        configEditorState: { clearChanges: vi.fn() },
     })
 
     return ws
@@ -77,8 +79,8 @@ describe('Workspace.upload — guard conditions', () => {
         expect((ws as any).cli.upload).not.toHaveBeenCalled()
     })
 
-    it('returns immediately when repoPath is null', async () => {
-        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: null } })
+    it('returns immediately when scratchPath is null', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, scratchPath: null } })
         await ws.upload()
         expect((ws as any).cli.upload).not.toHaveBeenCalled()
     })
@@ -94,10 +96,10 @@ describe('Workspace.upload — guard conditions', () => {
 // ── upload() — invocation ──────────────────────────────────────────────────────
 
 describe('Workspace.upload — cli.upload invocation', () => {
-    it('calls upload with repoPath, fqbn, and port', async () => {
+    it('calls upload with scratchPath, fqbn, and port', async () => {
         const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO } })
         await ws.upload()
-        expect((ws as any).cli.upload).toHaveBeenCalledWith(REPO, 'arduino:avr:mega', '/dev/ttyACM0')
+        expect((ws as any).cli.upload).toHaveBeenCalledWith('/mock/scratch/CommandStation-EX', 'arduino:avr:mega', '/dev/ttyACM0')
     })
 
     it('does not call cli.compile', async () => {
@@ -309,6 +311,7 @@ describe('Workspace.compile() — EX-CSB1 full configuration', () => {
             state: {
                 selectedDevice: csb1Device,
                 repoPath: CSB1_REPO,
+                scratchPath: CSB1_REPO,
                 configFiles: [{ name: 'config.h', content: CSB1_CONFIG_H }],
             },
             cli: { compile: mockCompile as unknown as (sketchPath: string, fqbn: string) => Promise<any> },

@@ -11,7 +11,7 @@ export default defineConfig({
         build: {
             sourcemap: true,
             lib: {
-                entry: resolve(__dirname, 'main/index.ts'),
+                entry: resolve(__dirname, 'src/main/index.ts'),
             },
         },
     },
@@ -22,20 +22,20 @@ export default defineConfig({
         build: {
             sourcemap: true,
             lib: {
-                entry: resolve(__dirname, 'preload/index.ts'),
+                entry: resolve(__dirname, 'src/preload/index.ts'),
             },
         },
     },
 
     // ── Renderer (Aurelia 2 + Vite) ───────────────────────────────────────────
     renderer: {
-        root: resolve(__dirname, 'renderer'),
+        root: resolve(__dirname, 'src/renderer'),
         plugins: [
             tailwindcss(),
             aurelia({
-                // Match files under renderer/src so the plugin filter resolves
-                // correctly relative to process.cwd() (which is src/).
-                include: resolve(__dirname, 'renderer/src/**/*.{ts,js,html}'),
+                // Match files under src/renderer/src so the plugin filter resolves
+                // correctly relative to process.cwd() (which is repo root).
+                include: resolve(__dirname, 'src/renderer/src/**/*.{ts,js,html}'),
                 useDev: false,
             }),
             (monacoEditorPlugin as unknown as typeof monacoEditorPlugin.default).default({
@@ -44,15 +44,15 @@ export default defineConfig({
         ],
         resolve: {
             alias: {
-                '@renderer': resolve(__dirname, 'renderer/src'),
-                '@services': resolve(__dirname, 'renderer/src/services'),
-                '@components': resolve(__dirname, 'renderer/src/components'),
+                '@renderer': resolve(__dirname, 'src/renderer/src'),
+                '@services': resolve(__dirname, 'src/renderer/src/services'),
+                '@components': resolve(__dirname, 'src/renderer/src/components'),
             },
         },
         build: {
             rollupOptions: {
                 input: {
-                    index: resolve(__dirname, 'renderer/index.html'),
+                    index: resolve(__dirname, 'src/renderer/index.html'),
                 },
             },
         },

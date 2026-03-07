@@ -36,7 +36,7 @@ vi.mock('fs', async (importOriginal) => {
 async function loadService() {
     // Reset module cache so JsonStore constructor runs fresh each test with current mock state
     vi.resetModules()
-    const mod = await import('../preferences')
+    const mod = await import('../../src/main/preferences')
     return new mod.PreferencesService()
 }
 

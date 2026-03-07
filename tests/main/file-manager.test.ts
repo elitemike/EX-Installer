@@ -34,7 +34,7 @@ vi.mock('fs/promises', () => ({
     rm: mockRm,
 }))
 
-import { FileService } from '../file-manager'
+import { FileService } from '../../src/main/file-manager'
 
 function makeService() {
     return new FileService()

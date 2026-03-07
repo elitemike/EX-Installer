@@ -26,7 +26,7 @@ vi.mock('python-shell', () => ({
     PythonShell: MockPythonShell,
 }))
 
-import { PythonRunner } from '../python-runner'
+import { PythonRunner } from '../../src/main/python-runner'
 
 // ── FakePythonShell class (defined after imports so it's available at test-run time) ──
 type MessageHandler = (msg: string) => void
