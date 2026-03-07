@@ -241,6 +241,9 @@ contextBridge.exposeInMainWorld('preferences', preferencesApi)
 const configApi = {
     getMock: (): Promise<boolean> =>
         ipcRenderer.invoke('config:get-mock'),
+
+    getSkipStartup: (): Promise<boolean> =>
+        ipcRenderer.invoke('config:get-skip-startup'),
 }
 
 contextBridge.exposeInMainWorld('config', configApi)

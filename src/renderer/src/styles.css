@@ -56,3 +56,29 @@ dialog::backdrop {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
 }
+
+/* ── Monaco squiggles — VS Code-style wavy underlines ───────────────────── */
+/* Percent-encoded SVG in url() gets decoded back to raw < > by Vite's CSS  */
+/* minifier, breaking the url() parser silently. Use base64 instead — it is */
+/* completely opaque to any CSS processor.                                   */
+div.monaco-editor .squiggly-error {
+    border-bottom: none !important;
+    background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyNmMTRjNGMnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
+    background-size: auto 3px !important;
+}
+div.monaco-editor .squiggly-warning {
+    border-bottom: none !important;
+    background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyNjY2E3MDAnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
+    background-size: auto 3px !important;
+}
+div.monaco-editor .squiggly-info {
+    border-bottom: none !important;
+    background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyM3NWJlZmYnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
+    background-size: auto 3px !important;
+}
+div.monaco-editor .squiggly-hint {
+    border-bottom: none !important;
+    background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMiAzJyBoZWlnaHQ9JzMnIHdpZHRoPScxMic+PGcgZmlsbD0nI2VlZWVlNCc+PGNpcmNsZSBjeD0nMScgY3k9JzInIHI9JzEnLz48Y2lyY2xlIGN4PSc1JyBjeT0nMicgcj0nMScvPjxjaXJjbGUgY3g9JzknIGN5PScyJyByPScxJy8+PC9nPjwvc3ZnPg==") repeat-x bottom left !important;
+    background-size: auto 3px !important;
+}
+

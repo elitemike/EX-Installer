@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { config } from './config'
 import { registerAllIpcHandlers } from './ipc'
@@ -8,6 +8,13 @@ import { ArduinoCliService } from './arduino-cli'
 import { GitService } from './git-client'
 import { FileService } from './file-manager'
 import { PreferencesService } from './preferences'
+
+// ── E2E Test isolation ───────────────────────────────────────────────────────
+// Allow tests to point userData at a temp directory so preferences don't bleed.
+const testDataDir = app.commandLine.getSwitchValue('test-data-dir')
+if (testDataDir) {
+    app.setPath('userData', testDataDir)
+}
 
 // ── Mock mode flag ──────────────────────────────────────────────────────────
 /**
@@ -58,6 +65,12 @@ function createWindow(): BrowserWindow {
             sandbox: false,
             contextIsolation: true,
             nodeIntegration: false,
+            // In E2E test mode the renderer loads from file:// rather than a
+            // localhost dev-server URL.  Third-party libraries (e.g. Syncfusion)
+            // perform domain-based license validation that passes on localhost
+            // but fires alert overlays on file://.  Disabling web-security for
+            // the test window makes file:// behave like a local trusted origin.
+            webSecurity: !testDataDir,
         },
     })
 
@@ -66,6 +79,33 @@ function createWindow(): BrowserWindow {
         if (process.env['ELECTRON_RENDERER_URL']) {
             //win.webContents.openDevTools()
         }
+    })
+
+    // ── Unsaved-changes prompt ────────────────────────────────────────────────
+    // Renderer sets window.onbeforeunload to return 'unsaved' when hasChanges.
+    // Electron fires will-prevent-unload here instead of showing a browser dialog.
+    win.webContents.on('will-prevent-unload', (event) => {
+        // In E2E test mode, skip the dialog and close immediately.
+        if (testDataDir) {
+            event.preventDefault()
+            win.destroy()
+            return
+        }
+        const choice = dialog.showMessageBoxSync(win, {
+            type: 'question',
+            buttons: ['Discard & Close', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+            title: 'Unsaved Changes',
+            message: 'You have unsaved configuration changes.',
+            detail: 'If you close now, your changes will be lost.',
+        })
+        if (choice === 0) {
+            // User chose "Discard & Close" — forcefully destroy the window.
+            event.preventDefault()
+            win.destroy()
+        }
+        // choice === 1 (Cancel) → do nothing, the unload is already prevented.
     })
 
     // F5 or Ctrl+R / Cmd+R → reload the renderer

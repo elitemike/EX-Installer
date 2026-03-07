@@ -176,6 +176,7 @@ export interface PreferencesElectronApi {
 
 export interface ConfigElectronApi {
     getMock: () => Promise<boolean>
+    getSkipStartup: () => Promise<boolean>
 }
 
 declare global {

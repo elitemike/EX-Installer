@@ -1,4 +1,4 @@
-import { resolve } from 'aurelia'
+import { observable, resolve } from 'aurelia'
 import { InstallerState } from './installer-state'
 import type { Roster, Turnout } from '../utils/myAutomationParser'
 import {
@@ -25,8 +25,11 @@ export class ConfigEditorState {
     // ── config.h ─────────────────────────────────────────────────────────────
     configHContent = ''
 
+    // ── Unsaved-changes tracking ──────────────────────────────────────────────
+    hasChanges = false
+
     // ── myRoster.h ───────────────────────────────────────────────────────────
-    roster: Roster[] = []
+    @observable roster: Roster[] = []
 
     get rosterRaw(): string {
         return serializeRosterToFile(this.roster)
@@ -35,6 +38,7 @@ export class ConfigEditorState {
     setRosterFromRaw(text: string): void {
         try {
             this.roster = parseRosterFromFile(text)
+            this.hasChanges = true
         } catch {
             // keep existing roster if parse fails
         }
@@ -43,21 +47,24 @@ export class ConfigEditorState {
 
     updateRosterEntry(index: number, entry: Roster): void {
         this.roster = this.roster.map((r, i) => (i === index ? { ...entry } : r))
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
     addRosterEntry(entry: Roster): void {
         this.roster = [...this.roster, entry]
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
     removeRosterEntry(index: number): void {
         this.roster = this.roster.filter((_, i) => i !== index)
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
     // ── myTurnouts.h ─────────────────────────────────────────────────────────
-    turnouts: Turnout[] = []
+    @observable turnouts: Turnout[] = []
 
     get turnoutsRaw(): string {
         return serializeTurnoutToFile(this.turnouts)
@@ -66,6 +73,7 @@ export class ConfigEditorState {
     setTurnoutsFromRaw(text: string): void {
         try {
             this.turnouts = parseTurnoutFromFile(text)
+            this.hasChanges = true
         } catch {
             // keep existing turnouts if parse fails
         }
@@ -74,16 +82,19 @@ export class ConfigEditorState {
 
     updateTurnoutEntry(index: number, entry: Turnout): void {
         this.turnouts = this.turnouts.map((t, i) => (i === index ? { ...entry } : t))
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
     addTurnoutEntry(entry: Turnout): void {
         this.turnouts = [...this.turnouts, entry]
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
     removeTurnoutEntry(index: number): void {
         this.turnouts = this.turnouts.filter((_, i) => i !== index)
+        this.hasChanges = true
         this._syncToInstallerState()
     }
 
@@ -155,6 +166,7 @@ export class ConfigEditorState {
                 this.turnouts = parseTurnoutFromFile(f.content)
             }
         }
+        this.hasChanges = false
         // Ensure myRoster.h + myTurnouts.h always appear in the file list
         // so their visual editors are reachable from the sidebar.
         const names = files.map(f => f.name)
@@ -200,10 +212,16 @@ export class ConfigEditorState {
     }
 
     syncConfigH(): void {
+        this.hasChanges = true
         for (const f of this.installerState.configFiles) {
             if (f.name === 'config.h') {
                 f.content = this.configHContent
             }
         }
+    }
+
+    /** Call after a successful save to disk to clear the dirty flag. */
+    clearChanges(): void {
+        this.hasChanges = false
     }
 }

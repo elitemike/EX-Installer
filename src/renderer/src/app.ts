@@ -1,4 +1,6 @@
+import { resolve } from 'aurelia'
 import { route } from '@aurelia/router'
+import { ConfigEditorState } from './models/config-editor-state'
 
 @route({
     routes: [
@@ -9,5 +11,16 @@ import { route } from '@aurelia/router'
     ],
 })
 export class App {
+    private readonly configEditorState = resolve(ConfigEditorState)
+
+    bound(): void {
+        window.onbeforeunload = () => {
+            if (this.configEditorState.hasChanges) {
+                // Returning any string signals Electron to emit will-prevent-unload,
+                // which the main process intercepts to show a native save dialog.
+                return 'unsaved'
+            }
+        }
+    }
 }
 

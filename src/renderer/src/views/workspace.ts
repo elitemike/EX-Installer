@@ -180,6 +180,7 @@ export class Workspace {
                 await this.files.writeFile(`${this.state.scratchPath}/${f.name}`, f.content)
             }
         }
+        this.configEditorState.clearChanges()
         await this.updateSavedConfig()
     }
 

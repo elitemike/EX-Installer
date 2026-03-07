@@ -5,6 +5,7 @@ import {
 } from 'aurelia'
 import * as monaco from 'monaco-editor'
 import { getCompletions } from '../config/file-configs'
+import { registerDiagnosticProviders, revalidateModel } from '../config/dccex-validators'
 
 // ── Global filename-aware completion + hover providers (registered once) ──────
 // Stored on `window` so Vite HMR module re-evaluation cannot reset the flag.
@@ -13,6 +14,9 @@ const WIN = window as Window & { __dccexProvidersRegistered?: boolean }
 function registerProviders(): void {
     if (WIN.__dccexProvidersRegistered) return
     WIN.__dccexProvidersRegistered = true
+
+    // Diagnostic markers (squiggles) for macro argument validation
+    registerDiagnosticProviders()
 
     // Completion — returns snippets for the file currently open in this model
     monaco.languages.registerCompletionItemProvider('cpp', {
@@ -95,6 +99,34 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
     attached(): void {
         registerProviders()
 
+        // Define a custom theme based on vs-dark that explicitly sets the
+        // squiggle foreground colors. Monaco's registerThemingParticipant
+        // only injects SVG squiggle CSS when getColor(editorErrorForeground)
+        // returns non-null. In bundled Electron file:// contexts the built-in
+        // vs-dark theme sometimes omits those color tokens, so we supply them
+        // here to guarantee the CSS is emitted through Monaco's own pipeline.
+        // Monaco v0.55.1 renders squiggles via CSS variables:
+        //   border-bottom: 4px double var(--vscode-editorError-border)
+        // Those variables are only emitted by the theming system when the
+        // corresponding color token is non-null in the active theme.  The
+        // built-in vs-dark theme omits them in bundled Electron file://
+        // contexts, so we define our own theme that explicitly supplies them.
+        monaco.editor.defineTheme('dccex-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [],
+            colors: {
+                'editorError.foreground': '#f14c4c',
+                'editorError.border': '#f14c4c',
+                'editorWarning.foreground': '#cca700',
+                'editorWarning.border': '#cca700',
+                'editorInfo.foreground': '#75beff',
+                'editorInfo.border': '#75beff',
+                'editorHint.foreground': '#eeeee4',
+                'editorHint.border': '#eeeee4',
+            },
+        })
+
         // Use a URI based on filename so completion/hover providers can identify
         // which file is active and return the correct per-file suggestions.
         const uri = this.filename
@@ -112,9 +144,15 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             this.model.setValue(this.value ?? '')
         }
 
+        // Ensure document.body has the monaco-editor class so overflow widgets
+        // (autocomplete, hover cards) are styled correctly when mounted there.
+        if (!document.body.classList.contains('monaco-editor')) {
+            document.body.classList.add('monaco-editor')
+        }
+
         this.editor = monaco.editor.create(this.container, {
             model: this.model,
-            theme: 'vs-dark',
+            theme: 'dccex-dark',
             language: this.language,
             readOnly: this.readonly,
             automaticLayout: true,
@@ -129,12 +167,32 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             scrollbar: {
                 verticalScrollbarSize: 8,
                 horizontalScrollbarSize: 8,
-            }
+            },
+            // Mount overflow widgets (autocomplete, hover cards) on document.body
+            // so they are never clipped by ancestor elements with overflow:hidden
+            // or stacking contexts near the top of the viewport.
+            fixedOverflowWidgets: true,
+            overflowWidgetsDomNode: document.body,
         })
 
         // Force layout after the DOM has fully settled (fixes height:100% chains in flex)
         requestAnimationFrame(() => this.editor?.layout())
         setTimeout(() => this.editor?.layout(), 50)
+
+        // Re-validate after edge layout and Monaco's internal decoration pipeline
+        // are both ready. We must fire AFTER the 50ms layout setTimeout above, and
+        // after Monaco's MarkerDecorationsService has subscribed to onMarkerChanged
+        // (which happens asynchronously post-editor.create). The clear→set pattern
+        // guarantees onMarkerChanged fires even when markers are already cached on
+        // the model from a prior onDidCreateModel call.
+        const modelToValidate = this.model
+        const editorInstance = this.editor
+        setTimeout(() => {
+            if (!modelToValidate || !editorInstance) return
+            // Clear first so onMarkerChanged fires unconditionally, then re-set.
+            monaco.editor.setModelMarkers(modelToValidate, 'dccex-validator', [])
+            revalidateModel(modelToValidate, editorInstance)
+        }, 100)
 
         // Propagate editor changes → binding
         this.changeDisposable = this.model.onDidChangeContent(() => {

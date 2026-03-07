@@ -13,7 +13,8 @@
         "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
         "lint": "eslint src --ext .ts,.html",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "test:e2e": "pnpm build && playwright test"
     },
     "dependencies": {
         "@aurelia/dialog": "2.0.0-rc.0",
@@ -31,6 +32,7 @@
         "usb": "^2.13.0"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
         "@tailwindcss/vite": "^4.2.0",
         "@types/node": "^24.10.13",
         "@types/tar": "^7.0.87",
