@@ -288,4 +288,133 @@ test.describe('Turnout Editor', () => {
         await page.waitForTimeout(500)
         await expect(page.locator('.e-toast-container .e-toast')).not.toBeVisible()
     })
+
+    // ── DCC (TURNOUT) type ───────────────────────────────────────────────────
+
+    test('valid TURNOUT (DCC) round-trips raw → visual → raw', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        const content = [
+            MOCK_TURNOUTS_H,
+            'TURNOUT(300, 10, 2, "DCC Switch 1")',
+        ].join('\n')
+        await setMonacoContent(page, content)
+        await switchToVisual(page)
+
+        await expect(page.getByText('DCC Switch 1')).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('3 entries')).toBeVisible()
+
+        await switchToRaw(page)
+        await expect(page.locator('div.monaco-editor')).toContainText('TURNOUT(300')
+        await expect(page.locator('div.monaco-editor')).toContainText('DCC Switch 1')
+    })
+
+    test('invalid TURNOUT (DCC) line is commented out when switching to visual', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'TURNOUT(bad, input)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('TURNOUT(bad, input)')
+    })
+
+    test('toast fires for invalid TURNOUT (DCC) line', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'TURNOUT(bad, input)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+        await expect(toast).toContainText('Invalid Lines Commented Out')
+    })
+
+    // ── PIN_TURNOUT type ─────────────────────────────────────────────────────
+
+    test('valid PIN_TURNOUT round-trips raw → visual → raw', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        const content = [
+            MOCK_TURNOUTS_H,
+            'PIN_TURNOUT(400, 52, "Pin Switch A")',
+        ].join('\n')
+        await setMonacoContent(page, content)
+        await switchToVisual(page)
+
+        await expect(page.getByText('Pin Switch A')).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('3 entries')).toBeVisible()
+
+        await switchToRaw(page)
+        await expect(page.locator('div.monaco-editor')).toContainText('PIN_TURNOUT(400')
+        await expect(page.locator('div.monaco-editor')).toContainText('Pin Switch A')
+    })
+
+    test('invalid PIN_TURNOUT line is commented out when switching to visual', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'PIN_TURNOUT(bad input)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('PIN_TURNOUT(bad input)')
+    })
+
+    test('toast fires for invalid PIN_TURNOUT line', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'PIN_TURNOUT(bad input)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+        await expect(toast).toContainText('Invalid Lines Commented Out')
+    })
+
+    // ── Mixed types ──────────────────────────────────────────────────────────
+
+    test('all three turnout types coexist and round-trip correctly', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        const content = [
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Servo Switch")',
+            'TURNOUT(300, 10, 2, "DCC Switch")',
+            'PIN_TURNOUT(400, 52, "Pin Switch")',
+        ].join('\n')
+        await setMonacoContent(page, content)
+        await switchToVisual(page)
+
+        await expect(page.getByText('Servo Switch')).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('DCC Switch')).toBeVisible()
+        await expect(page.getByText('Pin Switch')).toBeVisible()
+        await expect(page.getByText('3 entries')).toBeVisible()
+
+        await switchToRaw(page)
+        await expect(page.locator('div.monaco-editor')).toContainText('SERVO_TURNOUT(200')
+        await expect(page.locator('div.monaco-editor')).toContainText('TURNOUT(300')
+        await expect(page.locator('div.monaco-editor')).toContainText('PIN_TURNOUT(400')
+    })
 })

@@ -53,8 +53,9 @@
                 <div class="flex flex-col overflow-hidden">
                     <div if.bind="editBuffer" class="flex flex-col gap-4 p-4 overflow-y-auto flex-1">
 
-                        <!-- Input form -->
-                        <div class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
+                        <!-- Input form: SERVO_TURNOUT -->
+                        <div if.bind="editBuffer.type === 'SERVO'"
+                            class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
                             <div class="flex flex-col gap-4">
 
                                 <div class="flex gap-4">
@@ -124,8 +125,96 @@
                             </div>
                         </div>
 
-                        <!-- Configuration summary + visual angle bar -->
-                        <div class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
+                        <!-- Input form: TURNOUT (DCC accessory decoder) -->
+                        <div if.bind="editBuffer.type === 'DCC'"
+                            class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
+                            <div class="flex flex-col gap-4">
+                                <div class="flex gap-4">
+                                    <div class="flex flex-col gap-1.5 flex-1">
+                                        <label
+                                            class="text-xs font-semibold text-gray-400 uppercase tracking-wide">ID</label>
+                                        <input type="number"
+                                            class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm w-24 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                            value.bind="editBuffer.id" blur.trigger="onFieldBlur()" />
+                                    </div>
+                                    <div class="flex flex-col gap-1.5 flex-1">
+                                        <label
+                                            class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Address</label>
+                                        <input type="number"
+                                            class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm w-24 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                            value.bind="editBuffer.addr" blur.trigger="onFieldBlur()" />
+                                    </div>
+                                    <div class="flex flex-col gap-1.5 flex-1">
+                                        <label
+                                            class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sub-Address</label>
+                                        <input type="number"
+                                            class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm w-24 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                            value.bind="editBuffer.subAddr" blur.trigger="onFieldBlur()" />
+                                    </div>
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label
+                                        class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Description</label>
+                                    <input type="text"
+                                        class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm placeholder-gray-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                        value.bind="editBuffer.description" placeholder="Enter description..."
+                                        blur.trigger="onFieldBlur()" />
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label
+                                        class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Comment</label>
+                                    <input type="text"
+                                        class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm placeholder-gray-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                        value.bind="editBuffer.comment"
+                                        placeholder="Optional comment (appears after // in file)"
+                                        blur.trigger="onFieldBlur()" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Input form: PIN_TURNOUT (GPIO) -->
+                        <div if.bind="editBuffer.type === 'PIN'"
+                            class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
+                            <div class="flex flex-col gap-4">
+                                <div class="flex gap-4">
+                                    <div class="flex flex-col gap-1.5 flex-1">
+                                        <label
+                                            class="text-xs font-semibold text-gray-400 uppercase tracking-wide">ID</label>
+                                        <input type="number"
+                                            class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm w-24 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                            value.bind="editBuffer.id" blur.trigger="onFieldBlur()" />
+                                    </div>
+                                    <div class="flex flex-col gap-1.5 flex-1">
+                                        <label class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Pin
+                                            (VPin)</label>
+                                        <input type="number"
+                                            class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm w-24 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                            value.bind="editBuffer.pin" blur.trigger="onFieldBlur()" />
+                                    </div>
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label
+                                        class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Description</label>
+                                    <input type="text"
+                                        class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm placeholder-gray-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                        value.bind="editBuffer.description" placeholder="Enter description..."
+                                        blur.trigger="onFieldBlur()" />
+                                </div>
+                                <div class="flex flex-col gap-1.5">
+                                    <label
+                                        class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Comment</label>
+                                    <input type="text"
+                                        class="bg-gray-900 border border-white/15 text-gray-100 rounded-md px-2.5 py-1.5 text-sm placeholder-gray-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                                        value.bind="editBuffer.comment"
+                                        placeholder="Optional comment (appears after // in file)"
+                                        blur.trigger="onFieldBlur()" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configuration summary + visual angle bar (SERVO only) -->
+                        <div if.bind="editBuffer.type === 'SERVO'"
+                            class="bg-gray-800/50 border border-white/10 rounded-lg p-4">
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Configuration
                                 Summary</h3>
 

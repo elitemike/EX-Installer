@@ -22,16 +22,33 @@ export function getRealFunctions(roster: Roster): RosterFunction[] {
 }
 
 export type TurnoutProfile = 'Instant' | 'Fast' | 'Medium' | 'Slow' | 'Bounce';
+export type TurnoutType = 'SERVO' | 'DCC' | 'PIN';
 
-export interface Turnout {
-    id: number;
+interface TurnoutBase { id: number; description: string; comment?: string; }
+
+/** SERVO_TURNOUT(id, pin, activeAngle, inactiveAngle, profile[, "desc"]) */
+export interface ServoTurnout extends TurnoutBase {
+    type: 'SERVO';
     pin: number;
     activeAngle: number;
     inactiveAngle: number;
     profile: TurnoutProfile;
-    description: string;
-    comment?: string;
 }
+
+/** TURNOUT(id, addr, subAddr[, "desc"]) — DCC accessory decoder */
+export interface DccTurnout extends TurnoutBase {
+    type: 'DCC';
+    addr: number;
+    subAddr: number;
+}
+
+/** PIN_TURNOUT(id, pin[, "desc"]) — GPIO pin-driven */
+export interface PinTurnout extends TurnoutBase {
+    type: 'PIN';
+    pin: number;
+}
+
+export type Turnout = ServoTurnout | DccTurnout | PinTurnout;
 
 export interface AutomationData {
     roster: Roster[];
@@ -190,16 +207,29 @@ const VALID_TURNOUT_PROFILES: readonly TurnoutProfile[] = ['Instant', 'Fast', 'M
  * modified text and the list of original invalid line strings.
  */
 export function commentInvalidTurnoutLines(text: string): { processedText: string; invalidLines: string[] } {
-    const validRegex = /^\s*SERVO_TURNOUT\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\w+\s*(?:,\s*"[^"]*")?\s*\)(?:\s*\/\/.*)?$/;
-    const attemptRegex = /\bSERVO_TURNOUT\s*\(/;
+    // Valid-pattern regexes — a structurally correct line is left alone;
+    // the Monaco validator handles individual argument errors via squiggles.
+    const validServo = /^\s*SERVO_TURNOUT\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\w+\s*(?:,\s*"[^"]*")?\s*\)(?:\s*\/\/.*)?$/;
+    const validDcc = /^\s*TURNOUT\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*"[^"]*")?\s*\)(?:\s*\/\/.*)?$/;
+    const validPin = /^\s*PIN_TURNOUT\s*\(\s*\d+\s*,\s*\d+\s*(?:,\s*"[^"]*")?\s*\)(?:\s*\/\/.*)?$/;
 
     const invalidLines: string[] = [];
     const processedLines = text.split('\n').map(line => {
         const trimmed = line.trimStart();
         if (trimmed.startsWith('//')) return line;
-        if (attemptRegex.test(line) && !validRegex.test(line)) {
-            invalidLines.push(line);
-            return `// [INVALID] ${line}`;
+
+        if (/\bSERVO_TURNOUT\s*\(/.test(line)) {
+            if (!validServo.test(line)) { invalidLines.push(line); return `// [INVALID] ${line}`; }
+            return line;
+        }
+        if (/\bPIN_TURNOUT\s*\(/.test(line)) {
+            if (!validPin.test(line)) { invalidLines.push(line); return `// [INVALID] ${line}`; }
+            return line;
+        }
+        // Plain TURNOUT — guard against matching the suffix of SERVO_/PIN_ (handled above)
+        if (/(?<![A-Za-z_])TURNOUT\s*\(/.test(line)) {
+            if (!validDcc.test(line)) { invalidLines.push(line); return `// [INVALID] ${line}`; }
+            return line;
         }
         return line;
     });
@@ -208,29 +238,56 @@ export function commentInvalidTurnoutLines(text: string): { processedText: strin
 }
 
 export function parseTurnoutFromFile(fileContent: string): Turnout[] {
-    // Strip comment lines so that // [INVALID] SERVO_TURNOUT(...) entries are ignored.
+    // Strip // [INVALID] comment lines so they are not re-parsed.
     const uncommentedContent = fileContent
         .split('\n')
         .map(line => (line.trimStart().startsWith('//') ? '' : line))
         .join('\n');
 
-    const regex = /SERVO_TURNOUT\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\w+)\s*(?:,\s*"([^"]*)")?\s*\)(?:\s*\/\/\s*(.*))?/g;
     const entries: Turnout[] = [];
-    let match: RegExpExecArray | null;
+    let m: RegExpExecArray | null;
 
-    while ((match = regex.exec(uncommentedContent)) !== null) {
-        const profile = match[5] as TurnoutProfile;
+    // ── SERVO_TURNOUT(id, pin, activeAngle, inactiveAngle, profile[, "desc"]) ─
+    const servoRe = /SERVO_TURNOUT\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\w+)\s*(?:,\s*"([^"]*)")?\s*\)(?:\s*\/\/\s*(.*))?/g;
+    while ((m = servoRe.exec(uncommentedContent)) !== null) {
+        const profile = m[5] as TurnoutProfile;
         if (!VALID_TURNOUT_PROFILES.includes(profile)) {
             console.warn(`Invalid turnout profile: ${profile}, defaulting to Slow`);
         }
         entries.push({
-            id: parseInt(match[1], 10),
-            pin: parseInt(match[2], 10),
-            activeAngle: parseInt(match[3], 10),
-            inactiveAngle: parseInt(match[4], 10),
+            type: 'SERVO',
+            id: parseInt(m[1], 10),
+            pin: parseInt(m[2], 10),
+            activeAngle: parseInt(m[3], 10),
+            inactiveAngle: parseInt(m[4], 10),
             profile: VALID_TURNOUT_PROFILES.includes(profile) ? profile : 'Slow',
-            description: match[6] || '',
-            comment: match[7] ? match[7].trim() : '',
+            description: m[6] || '',
+            comment: m[7] ? m[7].trim() : '',
+        });
+    }
+
+    // ── TURNOUT(id, addr, subAddr[, "desc"]) — DCC accessory ─────────────────
+    const dccRe = /(?<![A-Za-z_])TURNOUT\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*"([^"]*)")?\s*\)(?:\s*\/\/\s*(.*))?/g;
+    while ((m = dccRe.exec(uncommentedContent)) !== null) {
+        entries.push({
+            type: 'DCC',
+            id: parseInt(m[1], 10),
+            addr: parseInt(m[2], 10),
+            subAddr: parseInt(m[3], 10),
+            description: m[4] || '',
+            comment: m[5] ? m[5].trim() : '',
+        });
+    }
+
+    // ── PIN_TURNOUT(id, pin[, "desc"]) — GPIO ─────────────────────────────────
+    const pinRe = /PIN_TURNOUT\s*\(\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*"([^"]*)")?\s*\)(?:\s*\/\/\s*(.*))?/g;
+    while ((m = pinRe.exec(uncommentedContent)) !== null) {
+        entries.push({
+            type: 'PIN',
+            id: parseInt(m[1], 10),
+            pin: parseInt(m[2], 10),
+            description: m[3] || '',
+            comment: m[4] ? m[4].trim() : '',
         });
     }
 
@@ -240,14 +297,22 @@ export function parseTurnoutFromFile(fileContent: string): Turnout[] {
 export function serializeTurnoutToFile(turnouts: Turnout[]): string {
     const lines: string[] = [];
     for (const t of turnouts) {
-        let line = `SERVO_TURNOUT(${t.id}, ${t.pin}, ${t.activeAngle}, ${t.inactiveAngle}, ${t.profile}`;
-        if (t.description) {
-            line += `, "${t.description}"`;
+        let line: string;
+        if (t.type === 'DCC') {
+            line = `TURNOUT(${t.id}, ${t.addr}, ${t.subAddr}`;
+            if (t.description) line += `, "${t.description}"`;
+            line += ')';
+        } else if (t.type === 'PIN') {
+            line = `PIN_TURNOUT(${t.id}, ${t.pin}`;
+            if (t.description) line += `, "${t.description}"`;
+            line += ')';
+        } else {
+            // SERVO (default)
+            line = `SERVO_TURNOUT(${t.id}, ${t.pin}, ${t.activeAngle}, ${t.inactiveAngle}, ${t.profile}`;
+            if (t.description) line += `, "${t.description}"`;
+            line += ')';
         }
-        line += ')';
-        if (t.comment) {
-            line += ` // ${t.comment}`;
-        }
+        if (t.comment) line += ` // ${t.comment}`;
         lines.push(line);
     }
     return lines.join('\n');
@@ -267,7 +332,7 @@ export function parseAutomationFile(fileContent: string): AutomationData {
     const lines = fileContent.split('\n');
     const preservedLines: string[] = [];
     const rosterPattern = /^\s*ROSTER\s*\(/;
-    const turnoutPattern = /^\s*SERVO_TURNOUT\s*\(/;
+    const turnoutPattern = /^\s*(?:SERVO_TURNOUT|PIN_TURNOUT|TURNOUT)\s*\(/;
 
     for (const line of lines) {
         if (rosterPattern.test(line) || turnoutPattern.test(line)) continue;
@@ -292,7 +357,7 @@ export function serializeAutomationFile(data: AutomationData): string {
 
     if (data.turnouts.length > 0) {
         if (sections.length > 0) sections.push('');
-        sections.push('// Servo turnout definitions');
+        sections.push('// Turnout definitions');
         sections.push(serializeTurnoutToFile(data.turnouts));
     }
 
@@ -315,8 +380,8 @@ ROSTER(301, "Amtrak Charger #301", "Headlights/Bell/Horn/*Short Horn/Whoosh/Trai
 
 export function loadDemoTurnouts(): Turnout[] {
     return [
-        { id: 200, pin: 101, activeAngle: 450, inactiveAngle: 110, profile: 'Slow', description: 'Example slow turnout', comment: '' },
-        { id: 201, pin: 102, activeAngle: 400, inactiveAngle: 100, profile: 'Medium', description: 'Yard ladder switch 1', comment: 'Main yard' },
-        { id: 202, pin: 103, activeAngle: 410, inactiveAngle: 90, profile: 'Fast', description: 'Main line crossover', comment: '' },
+        { type: 'SERVO', id: 200, pin: 101, activeAngle: 450, inactiveAngle: 110, profile: 'Slow', description: 'Example slow turnout', comment: '' },
+        { type: 'SERVO', id: 201, pin: 102, activeAngle: 400, inactiveAngle: 100, profile: 'Medium', description: 'Yard ladder switch 1', comment: 'Main yard' },
+        { type: 'SERVO', id: 202, pin: 103, activeAngle: 410, inactiveAngle: 90, profile: 'Fast', description: 'Main line crossover', comment: '' },
     ];
 }

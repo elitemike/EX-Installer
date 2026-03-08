@@ -2,7 +2,7 @@ import { queueTask, resolve } from 'aurelia'
 import { IDialogService } from '@aurelia/dialog'
 import { Splitter } from '@syncfusion/ej2-layouts'
 import { ConfigEditorState } from '../models/config-editor-state'
-import type { Turnout, TurnoutProfile } from '../utils/myAutomationParser'
+import type { Turnout, ServoTurnout, TurnoutProfile } from '../utils/myAutomationParser'
 import { commentInvalidTurnoutLines } from '../utils/myAutomationParser'
 import { ToastService } from '../services/toast.service'
 
@@ -162,7 +162,7 @@ export class TurnoutEditorCustomElement {
     }
 
     updateProfile(profile: TurnoutProfile): void {
-        if (!this.editBuffer) return
+        if (!this.editBuffer || this.editBuffer.type !== 'SERVO') return
         this.editBuffer.profile = profile
         this.commitBuffer()
     }
@@ -172,8 +172,10 @@ export class TurnoutEditorCustomElement {
         if (this.editBuffer !== null) this.commitBuffer()
         const ts = this.state.turnouts
         const maxId = ts.length > 0 ? Math.max(...ts.map(t => t.id)) + 1 : 200
-        const maxPin = ts.length > 0 ? Math.max(...ts.map(t => t.pin)) + 1 : 101
+        const servoEntries = ts.filter((t): t is ServoTurnout => t.type === 'SERVO')
+        const maxPin = servoEntries.length > 0 ? Math.max(...servoEntries.map(t => t.pin)) + 1 : 101
         const newEntry: Turnout = {
+            type: 'SERVO',
             id: maxId,
             pin: maxPin,
             activeAngle: 400,
