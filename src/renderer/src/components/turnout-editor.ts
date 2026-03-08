@@ -3,12 +3,15 @@ import { IDialogService } from '@aurelia/dialog'
 import { Splitter } from '@syncfusion/ej2-layouts'
 import { ConfigEditorState } from '../models/config-editor-state'
 import type { Turnout, TurnoutProfile } from '../utils/myAutomationParser'
+import { commentInvalidTurnoutLines } from '../utils/myAutomationParser'
+import { ToastService } from '../services/toast.service'
 
 type ViewTab = 'visual' | 'raw'
 
 export class TurnoutEditorCustomElement {
     readonly state = resolve(ConfigEditorState)
     private readonly dialogService = resolve(IDialogService)
+    private readonly toastService = resolve(ToastService)
     private splitterObj: Splitter | null = null
 
     readonly profiles: TurnoutProfile[] = ['Instant', 'Fast', 'Medium', 'Slow', 'Bounce']
@@ -21,8 +24,11 @@ export class TurnoutEditorCustomElement {
             this.commitBuffer()
         }
         if (tab === 'visual' && this.activeTab === 'raw') {
-            const text = this.rawEditor?.flush() ?? ''
-            if (text) this.state.setTurnoutsFromRaw(text)
+            // flush() cancels the debounce and returns the live model text.
+            // Fall back to _rawText (last text received via onRawChange) in case
+            // rawEditor is somehow null (e.g. race during component teardown).
+            const text = this.rawEditor?.flush() ?? this._rawText
+            this._processRawLeave(text)
             if (this.editBufferIndex !== null) {
                 const fresh = this.state.turnouts[this.editBufferIndex]
                 if (fresh) this._setBuffer(this.editBufferIndex, fresh)
@@ -31,6 +37,7 @@ export class TurnoutEditorCustomElement {
         }
         if (tab === 'raw') {
             this.rawSnapshot = this.state.turnoutsRaw
+            this._rawText = this.rawSnapshot
         }
         this.activeTab = tab
     }
@@ -57,13 +64,43 @@ export class TurnoutEditorCustomElement {
 
     detaching(): void {
         if (this.activeTab === 'raw') {
-            const text = this.rawEditor?.flush() ?? ''
-            if (text) this.state.setTurnoutsFromRaw(text)
+            const text = this.rawEditor?.flush() ?? this._rawText
+            this._processRawLeave(text)
         } else if (this.editBuffer !== null) {
             this.commitBuffer()
         }
         this.splitterObj?.destroy()
         this.splitterObj = null
+    }
+
+    /**
+     * Called whenever the user navigates away from raw mode.
+     *
+     * 1. Comments out any newly-invalid SERVO_TURNOUT lines and fires a toast.
+     * 2. Persists ALL `// [INVALID]` lines (new + pre-existing) so they survive
+     *    subsequent raw ↔ visual round-trips and don't silently disappear.
+     */
+    _processRawLeave(text: string): void {
+        const { processedText, invalidLines } = commentInvalidTurnoutLines(text)
+
+        // Must be set BEFORE setTurnoutsFromRaw so _syncToInstallerState (called
+        // inside setTurnoutsFromRaw) reads the updated turnoutsRaw getter.
+        const allInvalidComments = processedText
+            .split('\n')
+            .filter(l => l.trimStart().startsWith('// [INVALID]'))
+
+        this.state.turnoutPreservedComments = allInvalidComments.join('\n')
+        this.state.setTurnoutsFromRaw(processedText)
+
+        // Toast only when NEW invalid lines are found on this pass.
+        // Already-commented lines are not re-toasted on subsequent toggles.
+        if (invalidLines.length > 0) {
+            this.toastService.show({
+                title: 'Invalid Lines Commented Out',
+                content: `${invalidLines.length} invalid turnout line${invalidLines.length > 1 ? 's are' : ' is'} commented out to prevent data loss. Switch to Raw to review and fix.`,
+                cssClass: 'e-toast-warning',
+            })
+        }
     }
 
     private _loadSidebarWidth(): string {
@@ -76,9 +113,12 @@ export class TurnoutEditorCustomElement {
     // ── Raw snapshot for Monaco ───────────────────────────────────────────────
     rawEditor: { flush(): string } | null = null
     rawSnapshot = ''
+    /** Last text received from Monaco (via onRawChange or on raw-tab entry). */
+    private _rawText = ''
 
     // Arrow function so it can be passed as a bindable callback without losing `this`.
     onRawChange = (text: string): void => {
+        this._rawText = text
         this.state.setTurnoutsFromRaw(text)
         if (this.editBufferIndex !== null) {
             const fresh = this.state.turnouts[this.editBufferIndex]

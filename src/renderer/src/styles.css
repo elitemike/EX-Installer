@@ -8,6 +8,7 @@
 @import "@syncfusion/ej2-layouts/styles/tailwind-dark.css";
 @import "@syncfusion/ej2-navigations/styles/tailwind.css";
 @import "@syncfusion/ej2-navigations/styles/stepper/tailwind.css";
+@import "@syncfusion/ej2-notifications/styles/tailwind-dark.css";
 
 /* ── Set Roboto as the global font ────────────────────────────────────── */
 @theme {
@@ -66,19 +67,108 @@ div.monaco-editor .squiggly-error {
     background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyNmMTRjNGMnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
     background-size: auto 3px !important;
 }
+
 div.monaco-editor .squiggly-warning {
     border-bottom: none !important;
     background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyNjY2E3MDAnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
     background-size: auto 3px !important;
 }
+
 div.monaco-editor .squiggly-info {
     border-bottom: none !important;
     background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2IDMnIGhlaWdodD0nMycgd2lkdGg9JzYnPjxnIGZpbGw9JyM3NWJlZmYnPjxwb2x5Z29uIHBvaW50cz0nNS41LDAgMi41LDMgMS4xLDMgNC4xLDAnLz48cG9seWdvbiBwb2ludHM9JzQsMCA2LDIgNiwwLjYgNS40LDAnLz48cG9seWdvbiBwb2ludHM9JzAsMiAxLDMgMi40LDMgMCwwLjYnLz48L2c+PC9zdmc+") repeat-x bottom left !important;
     background-size: auto 3px !important;
 }
+
 div.monaco-editor .squiggly-hint {
     border-bottom: none !important;
     background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMiAzJyBoZWlnaHQ9JzMnIHdpZHRoPScxMic+PGcgZmlsbD0nI2VlZWVlNCc+PGNpcmNsZSBjeD0nMScgY3k9JzInIHI9JzEnLz48Y2lyY2xlIGN4PSc1JyBjeT0nMicgcj0nMScvPjxjaXJjbGUgY3g9JzknIGN5PScyJyByPScxJy8+PC9nPjwvc3ZnPg==") repeat-x bottom left !important;
     background-size: auto 3px !important;
 }
 
+/* ── App toast notifications ────────────────────────────────────────────── */
+.e-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 400px;
+}
+
+.e-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #1e2535;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    animation: toast-in 0.2s ease;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.e-toast-message {
+    flex: 1;
+    min-width: 0;
+}
+
+.e-toast-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: #f1f5f9;
+}
+
+.e-toast-content {
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.e-toast-close-icon {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 0 0 4px;
+    margin-top: -1px;
+}
+
+.e-toast-close-icon:hover {
+    color: #e2e8f0;
+}
+
+/* Type variants */
+.e-toast.e-toast-warning {
+    border-left: 3px solid #f59e0b;
+}
+
+.e-toast.e-toast-success {
+    border-left: 3px solid #22c55e;
+}
+
+.e-toast.e-toast-danger {
+    border-left: 3px solid #ef4444;
+}
+
+.e-toast.e-toast-info {
+    border-left: 3px solid #60a5fa;
+}

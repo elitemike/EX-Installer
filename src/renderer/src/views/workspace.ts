@@ -2,6 +2,7 @@ import { resolve } from 'aurelia'
 import { Router } from '@aurelia/router'
 import { IDialogService } from '@aurelia/dialog'
 import { InstallerState } from '../models/installer-state'
+import { ToastService } from '../services/toast.service'
 import { ConfigEditorState } from '../models/config-editor-state'
 import { friendlyName } from '../utils/friendly-names'
 import { PreferencesService } from '../services/preferences.service'
@@ -17,6 +18,7 @@ export class Workspace {
     private readonly dialogService = resolve(IDialogService)
     readonly state = resolve(InstallerState)
     readonly configEditorState = resolve(ConfigEditorState)
+    private readonly toastService = resolve(ToastService)
     private readonly preferences = resolve(PreferencesService)
     private readonly files = resolve(FileService)
     private readonly cli = resolve(ArduinoCliService)
@@ -232,9 +234,19 @@ export class Workspace {
             this.progressPercent = 70
             this.compileSuccess = true
             this.compileLog += '\n✓ Compile successful!'
+            this.toastService.show({
+                title: 'Compile Successful',
+                content: `Built for ${fqbn}.`,
+                cssClass: 'e-toast-success',
+            })
         } catch (err) {
             this.compileError = (err as Error).message
             this.compileSuccess = false
+            this.toastService.show({
+                title: 'Compile Failed',
+                content: (err as Error).message,
+                cssClass: 'e-toast-danger',
+            })
         } finally {
             this.isCompiling = false
         }
@@ -263,9 +275,19 @@ export class Workspace {
             this.progressPercent = 100
             this.compileSuccess = true
             this.compileLog += '\n✓ Upload complete!'
+            this.toastService.show({
+                title: 'Upload Complete',
+                content: `Firmware uploaded to ${device.port}.`,
+                cssClass: 'e-toast-success',
+            })
         } catch (err) {
             this.compileError = (err as Error).message
             this.compileSuccess = false
+            this.toastService.show({
+                title: 'Upload Failed',
+                content: (err as Error).message,
+                cssClass: 'e-toast-danger',
+            })
         } finally {
             this.isCompiling = false
         }

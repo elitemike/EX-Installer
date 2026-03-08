@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { config } from './config'
 import { registerAllIpcHandlers } from './ipc'
@@ -16,15 +16,19 @@ if (testDataDir) {
     app.setPath('userData', testDataDir)
 }
 
-// ── Mock mode flag ──────────────────────────────────────────────────────────
+// ── Mock mode flags ─────────────────────────────────────────────────────────
 /**
- * Runtime mock mode flag.
+ * IS_MOCK_DEVICE — mocks USB/device scanning (virtual boards, no real hardware).
+ * Enable with `--mock-device`.
  *
- * Works for both `electron-vite dev -- --mock` and packaged executables
- * launched with `./EX-Installer --mock`.
+ * IS_MOCK_COMPILE — mocks arduino-cli compile/upload responses so e2e tests
+ * don't require a real toolchain. Enable with `--mock-compile`.
  */
-export const IS_DEV_MOCK =
-    app.commandLine.hasSwitch('mock') || process.argv.includes('--mock')
+export const IS_MOCK_DEVICE =
+    app.commandLine.hasSwitch('mock-device') || process.argv.includes('--mock-device')
+
+export const IS_MOCK_COMPILE =
+    app.commandLine.hasSwitch('mock-compile') || process.argv.includes('--mock-compile')
 
 if (config.disableHardwareAcceleration) app.disableHardwareAcceleration()
 
@@ -82,30 +86,20 @@ function createWindow(): BrowserWindow {
     })
 
     // ── Unsaved-changes prompt ────────────────────────────────────────────────
-    // Renderer sets window.onbeforeunload to return 'unsaved' when hasChanges.
-    // Electron fires will-prevent-unload here instead of showing a browser dialog.
-    win.webContents.on('will-prevent-unload', (event) => {
-        // In E2E test mode, skip the dialog and close immediately.
+    // Intercept the window close button. In E2E test mode close immediately;
+    // otherwise ask the renderer to show its own styled confirmation dialog.
+    // The renderer calls window:force-close back via IPC if the user confirms.
+    win.on('close', (event) => {
         if (testDataDir) {
-            event.preventDefault()
-            win.destroy()
+            // E2E mode: always close without prompting.
             return
         }
-        const choice = dialog.showMessageBoxSync(win, {
-            type: 'question',
-            buttons: ['Discard & Close', 'Cancel'],
-            defaultId: 1,
-            cancelId: 1,
-            title: 'Unsaved Changes',
-            message: 'You have unsaved configuration changes.',
-            detail: 'If you close now, your changes will be lost.',
-        })
-        if (choice === 0) {
-            // User chose "Discard & Close" — forcefully destroy the window.
-            event.preventDefault()
-            win.destroy()
-        }
-        // choice === 1 (Cancel) → do nothing, the unload is already prevented.
+        event.preventDefault()
+        win.webContents.send('window:close-requested')
+    })
+
+    ipcMain.handle('window:force-close', () => {
+        win.destroy()
     })
 
     // F5 or Ctrl+R / Cmd+R → reload the renderer

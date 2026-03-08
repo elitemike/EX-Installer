@@ -1,9 +1,9 @@
 import { ipcMain, app } from 'electron'
-import { IS_DEV_MOCK } from '../index'
+import { IS_MOCK_DEVICE } from '../index'
 
 export function registerConfigIpcHandlers(): void {
     ipcMain.handle('config:get-mock', () => {
-        return IS_DEV_MOCK
+        return IS_MOCK_DEVICE
     })
 
     ipcMain.handle('config:get-skip-startup', () => {

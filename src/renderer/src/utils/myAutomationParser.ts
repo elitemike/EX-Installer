@@ -58,12 +58,44 @@ function sanitizeMacroName(name: string): string {
     return name.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') + '_F';
 }
 
+/**
+ * Scans raw roster text and comments out any lines that look like ROSTER(...)
+ * calls but fail to parse as valid entries. Returns the modified text and the
+ * list of original invalid line strings so callers can surface a warning.
+ */
+export function commentInvalidRosterLines(text: string): { processedText: string; invalidLines: string[] } {
+    // Full-match pattern for a valid ROSTER call (same as the parser uses).
+    const validRegex = /^\s*ROSTER\s*\(\s*\d+\s*,\s*"[^"]*"\s*,\s*(?:[A-Za-z0-9_]+|"[^"]*")\s*\)(?:\s*\/\/.*)?$/;
+    // Looser pattern: any line that contains a ROSTER( token (catches malformed calls).
+    const rosterAttemptRegex = /\bROSTER\s*\(/;
+
+    const invalidLines: string[] = [];
+    const processedLines = text.split('\n').map(line => {
+        const trimmed = line.trimStart();
+        // Already a comment — leave it alone.
+        if (trimmed.startsWith('//')) return line;
+        if (rosterAttemptRegex.test(line) && !validRegex.test(line)) {
+            invalidLines.push(line);
+            return `// [INVALID] ${line}`;
+        }
+        return line;
+    });
+
+    return { processedText: processedLines.join('\n'), invalidLines };
+}
+
 export function parseRosterFromFile(fileContent: string): Roster[] {
+    // Strip comment lines so that // [INVALID] ROSTER(...) entries are ignored.
+    const uncommentedContent = fileContent
+        .split('\n')
+        .map(line => (line.trimStart().startsWith('//') ? '' : line))
+        .join('\n');
+
     // Parse #define macros for function lists
     const defineRegex = /^\s*#define\s+(\w+)\s+"([^"]*)"/gm;
     const macroMap: Record<string, string> = {};
     let defMatch: RegExpExecArray | null;
-    while ((defMatch = defineRegex.exec(fileContent)) !== null) {
+    while ((defMatch = defineRegex.exec(uncommentedContent)) !== null) {
         macroMap[defMatch[1]] = defMatch[2];
     }
 
@@ -71,7 +103,7 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
     const entries: Roster[] = [];
     let match: RegExpExecArray | null;
 
-    while ((match = rosterRegex.exec(fileContent)) !== null) {
+    while ((match = rosterRegex.exec(uncommentedContent)) !== null) {
         const dccAddress = parseInt(match[1], 10);
         const name = match[2];
         let functionsString = match[3];
@@ -152,12 +184,41 @@ export function serializeRosterToFile(roster: Roster[]): string {
 
 const VALID_TURNOUT_PROFILES: readonly TurnoutProfile[] = ['Instant', 'Fast', 'Medium', 'Slow', 'Bounce'];
 
+/**
+ * Scans raw turnout text and comments out any lines that look like
+ * SERVO_TURNOUT(...) calls but fail to parse as valid entries. Returns the
+ * modified text and the list of original invalid line strings.
+ */
+export function commentInvalidTurnoutLines(text: string): { processedText: string; invalidLines: string[] } {
+    const validRegex = /^\s*SERVO_TURNOUT\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\w+\s*(?:,\s*"[^"]*")?\s*\)(?:\s*\/\/.*)?$/;
+    const attemptRegex = /\bSERVO_TURNOUT\s*\(/;
+
+    const invalidLines: string[] = [];
+    const processedLines = text.split('\n').map(line => {
+        const trimmed = line.trimStart();
+        if (trimmed.startsWith('//')) return line;
+        if (attemptRegex.test(line) && !validRegex.test(line)) {
+            invalidLines.push(line);
+            return `// [INVALID] ${line}`;
+        }
+        return line;
+    });
+
+    return { processedText: processedLines.join('\n'), invalidLines };
+}
+
 export function parseTurnoutFromFile(fileContent: string): Turnout[] {
+    // Strip comment lines so that // [INVALID] SERVO_TURNOUT(...) entries are ignored.
+    const uncommentedContent = fileContent
+        .split('\n')
+        .map(line => (line.trimStart().startsWith('//') ? '' : line))
+        .join('\n');
+
     const regex = /SERVO_TURNOUT\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\w+)\s*(?:,\s*"([^"]*)")?\s*\)(?:\s*\/\/\s*(.*))?/g;
     const entries: Turnout[] = [];
     let match: RegExpExecArray | null;
 
-    while ((match = regex.exec(fileContent)) !== null) {
+    while ((match = regex.exec(uncommentedContent)) !== null) {
         const profile = match[5] as TurnoutProfile;
         if (!VALID_TURNOUT_PROFILES.includes(profile)) {
             console.warn(`Invalid turnout profile: ${profile}, defaulting to Slow`);

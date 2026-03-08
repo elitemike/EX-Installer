@@ -4,14 +4,14 @@ import type { InstallerState } from '../../src/renderer/src/models/installer-sta
 import type { ArduinoCliService } from '../../src/renderer/src/services/arduino-cli.service'
 import type { FileService } from '../../src/renderer/src/services/file.service'
 
-// ── Factory ───────────────────────────────────────────────────────────────────
+// ── Factory ───────────────────────────────────────────────────────────────────────────────
 
 function makeWorkspace(overrides: {
     state?: Partial<InstallerState>
     cli?: Partial<ArduinoCliService>
     files?: Partial<FileService>
-} = {}): Workspace {
-    const ws = Object.create(Workspace.prototype) as Workspace
+} = {}): Workspace & { eaPublish: ReturnType<typeof vi.fn> } {
+    const ws = Object.create(Workspace.prototype) as Workspace & { eaPublish: ReturnType<typeof vi.fn> }
 
     const state = {
         selectedDevice: null,
@@ -38,10 +38,15 @@ function makeWorkspace(overrides: {
         ...overrides.cli,
     } as unknown as ArduinoCliService
 
+    const eaPublish = vi.fn()
+    const toastShow = vi.fn()
+
     Object.assign(ws, {
         state,
         cli,
         files,
+        ea: { publish: eaPublish },
+        toastService: { show: toastShow },
         router: { load: vi.fn() },
         dialogService: {},
         preferences: { get: vi.fn(), set: vi.fn() },
@@ -55,6 +60,9 @@ function makeWorkspace(overrides: {
         activeFileIndex: 0,
         configEditorState: { clearChanges: vi.fn() },
     })
+
+    ws.eaPublish = eaPublish
+        ; (ws as any).toastShow = toastShow
 
     return ws
 }
@@ -474,5 +482,79 @@ describe('Workspace.compile — successive calls', () => {
         await ws.compile()
         expect(ws.compileLog).not.toContain('first run output')
         expect(ws.compileLog).toContain('second run output')
+    })
+})
+
+// ── Toast notifications ───────────────────────────────────────────────────────
+
+describe('Workspace.compile — toast notifications', () => {
+    it('publishes a success toast on successful compile', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] } })
+        await ws.compile()
+        expect((ws as any).toastShow).toHaveBeenCalledWith(expect.objectContaining({
+            cssClass: 'e-toast-success',
+        }))
+    })
+
+    it('success toast title is "Compile Successful"', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] } })
+        await ws.compile()
+        const [payload] = (ws as any).toastShow.mock.calls[0]
+        expect(payload.title).toBe('Compile Successful')
+    })
+
+    it('success toast content includes the fqbn', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] } })
+        await ws.compile()
+        const [payload] = (ws as any).toastShow.mock.calls[0]
+        expect(payload.content).toContain(megaDevice.fqbn)
+    })
+
+    it('publishes a failure toast on failed compile', async () => {
+        const ws = makeWorkspace({
+            state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] },
+            cli: { compile: vi.fn().mockResolvedValue({ success: false, output: '', error: 'compile error' }) },
+        })
+        await ws.compile()
+        expect((ws as any).toastShow).toHaveBeenCalledWith(expect.objectContaining({
+            cssClass: 'e-toast-danger',
+        }))
+    })
+
+    it('failure toast title is "Compile Failed"', async () => {
+        const ws = makeWorkspace({
+            state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] },
+            cli: { compile: vi.fn().mockResolvedValue({ success: false, output: '', error: 'bad board' }) },
+        })
+        await ws.compile()
+        const [payload] = (ws as any).toastShow.mock.calls[0]
+        expect(payload.title).toBe('Compile Failed')
+    })
+
+    it('failure toast content contains the error message', async () => {
+        const errMsg = "error: 'WIFI_SSID' was not declared"
+        const ws = makeWorkspace({
+            state: { selectedDevice: megaDevice, repoPath: REPO, configFiles: [] },
+            cli: { compile: vi.fn().mockResolvedValue({ success: false, output: '', error: errMsg }) },
+        })
+        await ws.compile()
+        const [payload] = (ws as any).toastShow.mock.calls[0]
+        expect(payload.content).toContain(errMsg)
+    })
+
+    it('no toast is published when guard returns early (no device)', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: null } })
+        await ws.compile()
+        expect((ws as any).toastShow).not.toHaveBeenCalled()
+    })
+
+    it('no toast published when FQBN is missing (error path still toasts)', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: { ...megaDevice, fqbn: '' }, repoPath: REPO } })
+        await ws.compile()
+        // FQBN error is caught → failure toast fired
+        expect((ws as any).toastShow).toHaveBeenCalledWith(expect.objectContaining({
+            cssClass: 'e-toast-danger',
+            title: 'Compile Failed',
+        }))
     })
 })

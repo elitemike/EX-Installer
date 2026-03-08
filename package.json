@@ -6,7 +6,7 @@
     "main": "out/main/index.js",
     "scripts": {
         "dev": "electron-vite dev",
-        "dev:mock": "electron-vite dev -- --mock",
+        "dev:mock": "electron-vite dev -- --mock-device",
         "debug": "electron-vite dev --inspect=9229",
         "build": "electron-vite build",
         "preview": "electron-vite preview",

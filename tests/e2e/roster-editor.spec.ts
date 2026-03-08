@@ -27,6 +27,8 @@ async function openRosterEditor(page: import('@playwright/test').Page) {
 async function switchToRaw(page: import('@playwright/test').Page) {
     await page.getByRole('button', { name: 'Raw' }).click()
     await expect(page.locator('div.monaco-editor')).toBeVisible()
+    // Allow rawText binding to propagate to Monaco after visual processing
+    await page.waitForTimeout(400)
 }
 
 /**
@@ -72,7 +74,9 @@ async function getMonacoContent(page: import('@playwright/test').Page): Promise<
             const ta = editorEl.querySelector('textarea.inputarea') as HTMLTextAreaElement | null
             return ta?.value ?? ''
         }
-        return lines.map(l => l.textContent ?? '').join('\n')
+        // Monaco uses non-breaking spaces (\u00a0) in view-line rendering;
+        // normalize to regular spaces so string comparisons work as expected.
+        return lines.map(l => (l.textContent ?? '').replace(/\u00a0/g, ' ')).join('\n')
     })
 }
 
@@ -239,5 +243,80 @@ test.describe('Roster Editor', () => {
         // Switch to raw and verify the change
         await switchToRaw(page)
         await expect(page.locator('div.monaco-editor')).toContainText('Gordon the Big Engine')
+    })
+
+    // ── Invalid lines: commenting + toast ────────────────────────────────────
+
+    test('invalid ROSTER line is commented out when switching to visual', async ({ workspacePage: page }) => {
+        await openRosterEditor(page)
+        await switchToRaw(page)
+
+        // Type a malformed ROSTER call (missing quotes around name)
+        await setMonacoContent(page, 'ROSTER(bad input here)\nROSTER(3, "Thomas", "LIGHT")')
+
+        await switchToVisual(page)
+
+        // Switch back to raw — the bad line must now be commented out
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('ROSTER(bad input here)')
+    })
+
+    test('toast notification appears when invalid line is commented out', async ({ workspacePage: page }) => {
+        await openRosterEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page, 'ROSTER(bad input here)\nROSTER(3, "Thomas", "LIGHT")')
+
+        await switchToVisual(page)
+
+        // Syncfusion renders toasts inside .e-toast-container; wait for one to appear.
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+        await expect(toast).toContainText('Invalid Lines Commented Out')
+        await expect(toast).toContainText('commented out to prevent data loss')
+    })
+
+    test('commented-out invalid line persists after multiple raw ↔ visual toggles', async ({ workspacePage: page }) => {
+        await openRosterEditor(page)
+        await switchToRaw(page)
+
+        // First pass: introduce a bad line alongside a good one
+        await setMonacoContent(page, 'ROSTER(bad input here)\nROSTER(3, "Thomas", "LIGHT")')
+        await switchToVisual(page)
+
+        // Second toggle: go back to raw and straight back to visual
+        await switchToRaw(page)
+        await switchToVisual(page)
+
+        // Third toggle: verify the [INVALID] comment is still present in raw
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('ROSTER(bad input here)')
+    })
+
+    test('toast does NOT fire a second time when toggling again with no new invalid lines', async ({ workspacePage: page }) => {
+        await openRosterEditor(page)
+        await switchToRaw(page)
+
+        // First pass: creates the toast
+        await setMonacoContent(page, 'ROSTER(bad input here)\nROSTER(3, "Thomas", "LIGHT")')
+        await switchToVisual(page)
+
+        // Wait for any toast to finish rendering before we dismiss / check again
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+
+        // Dismiss the toast by clicking its close button
+        await toast.locator('.e-toast-close-icon').click()
+        await expect(toast).not.toBeVisible({ timeout: 3_000 })
+
+        // Second toggle — no new invalid lines, so toast must NOT reappear
+        await switchToRaw(page)
+        await switchToVisual(page)
+        await page.waitForTimeout(500)
+        await expect(page.locator('.e-toast-container .e-toast')).not.toBeVisible()
     })
 })

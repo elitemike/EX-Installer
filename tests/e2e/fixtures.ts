@@ -1,14 +1,17 @@
 /**
  * Shared Playwright fixtures for EX-Installer E2E tests.
  *
- * The `workspacePage` fixture:
+ * The `workspacePage` fixture (mock compile):
  *   1. Creates an isolated temp directory for Electron userData.
  *   2. Seeds mock myRoster.h, myTurnouts.h, and config.h files on disk.
  *   3. Writes a SavedConfiguration into the preferences JSON so the home
  *      screen shows a card that can be clicked to load the workspace.
- *   4. Launches Electron with --mock --skip-startup --test-data-dir=<tmp>.
+ *   4. Launches Electron with --mock-device --mock-compile --skip-startup --test-data-dir=<tmp>.
  *   5. Navigates: home → workspace (by clicking the mock config card).
  *   6. Returns the Playwright Page for the workspace view.
+ *
+ * The `workspacePageNative` fixture omits --mock-compile so compile calls
+ * hit the real arduino-cli toolchain. Use it for COMPILE_E2E=1 tests.
  */
 
 import { test as base, expect } from '@playwright/test'
@@ -35,104 +38,118 @@ export const MOCK_CONFIG_H = [
     '#define MAIN_DRIVER_MOTOR_SHIELD STANDARD_MOTOR_SHIELD',
 ].join('\n')
 
-// Resolve Electron main entry relative to repo root (tests/e2e/ → ../../src/out/main/index.js)
-const ELECTRON_MAIN = resolve(__dirname, '../../src/out/main/index.js')
+export const MOCK_SKETCH_INO = [
+    '// CommandStation-EX.ino — minimal mock sketch',
+    '#include "config.h"',
+    '',
+    'void setup() {}',
+    'void loop() {}',
+].join('\n') + '\n'
+
+// Resolve Electron main entry relative to repo root (tests/e2e/ → ../../out/main/index.js)
+const ELECTRON_MAIN = resolve(__dirname, '../../out/main/index.js')
 
 // ── Fixture types ─────────────────────────────────────────────────────────────
 
 interface WorkspaceFixtures {
     electronApp: ElectronApplication
     workspacePage: Page
+    electronAppNative: ElectronApplication
+    workspacePageNative: Page
 }
 
-// ── Shared test base with workspace fixture ───────────────────────────────────
+// ── Shared: seed temp dir + launch Electron ───────────────────────────────────
+
+async function launchApp(mockCompile: boolean): Promise<{ app: ElectronApplication; testDataDir: string }> {
+    const testDataDir = mkdtempSync(join(tmpdir(), 'ex-installer-e2e-'))
+
+    const scratchPath = join(testDataDir, 'scratch', 'CommandStation-EX')
+    mkdirSync(scratchPath, { recursive: true })
+    writeFileSync(join(scratchPath, 'myRoster.h'), MOCK_ROSTER_H, 'utf-8')
+    writeFileSync(join(scratchPath, 'myTurnouts.h'), MOCK_TURNOUTS_H, 'utf-8')
+    writeFileSync(join(scratchPath, 'config.h'), MOCK_CONFIG_H, 'utf-8')
+    writeFileSync(join(scratchPath, 'CommandStation-EX.ino'), MOCK_SKETCH_INO, 'utf-8')
+
+    const prefsDir = join(testDataDir, 'preferences')
+    mkdirSync(prefsDir, { recursive: true })
+    const savedConfig = {
+        id: 'e2e-test-config',
+        name: 'E2E Test Layout',
+        deviceName: 'Arduino Mega 2560',
+        devicePort: '/dev/ttyACM1',
+        deviceFqbn: 'arduino:avr:mega:cpu=atmega2560',
+        product: 'ex_commandstation',
+        productName: 'EX-CommandStation',
+        version: 'v5.4.0-Prod',
+        repoPath: join(testDataDir, 'scratch'),
+        scratchPath,
+        configFiles: [
+            { name: 'config.h', content: MOCK_CONFIG_H },
+            { name: 'myRoster.h', content: MOCK_ROSTER_H },
+            { name: 'myTurnouts.h', content: MOCK_TURNOUTS_H },
+        ],
+        lastModified: new Date().toISOString(),
+    }
+    writeFileSync(
+        join(prefsDir, 'ex-installer-preferences.json'),
+        JSON.stringify({ savedConfigurations: [savedConfig] }, null, 2),
+        'utf-8',
+    )
+
+    const args = [
+        ELECTRON_MAIN,
+        '--mock-device',
+        ...(mockCompile ? ['--mock-compile'] : []),
+        '--skip-startup',
+        `--test-data-dir=${testDataDir}`,
+        '--disable-gpu',
+        '--no-sandbox',
+        '--js-flags=--no-expose-wasm',
+    ]
+
+    const app = await electron.launch({ args, chromiumSandbox: false })
+    return { app, testDataDir }
+}
+
+async function navigateToWorkspace(app: ElectronApplication): Promise<Page> {
+    const page = await app.firstWindow()
+    page.on('dialog', (dialog) => dialog.accept().catch(() => undefined))
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(() => {
+        document.querySelectorAll('[id^="ej2-licensing"]').forEach(el => el.remove())
+    }).catch(() => undefined)
+    await expect(page.getByText('E2E Test Layout')).toBeVisible({ timeout: 15_000 })
+    await page.getByText('E2E Test Layout').click()
+    await expect(page.getByText('Roster', { exact: true })).toBeVisible({ timeout: 10_000 })
+    return page
+}
+
+// ── Shared test base with workspace fixtures ──────────────────────────────────
 
 export const test = base.extend<WorkspaceFixtures>({
     // eslint-disable-next-line no-empty-pattern
     electronApp: async ({ }, use) => {
-        // 1. Isolated temp directory acts as the full userData directory.
-        const testDataDir = mkdtempSync(join(tmpdir(), 'ex-installer-e2e-'))
-
-        // 2. Seed the scratch directory (where config files live on disk).
-        const scratchPath = join(testDataDir, 'scratch', 'CommandStation-EX')
-        mkdirSync(scratchPath, { recursive: true })
-        writeFileSync(join(scratchPath, 'myRoster.h'), MOCK_ROSTER_H, 'utf-8')
-        writeFileSync(join(scratchPath, 'myTurnouts.h'), MOCK_TURNOUTS_H, 'utf-8')
-        writeFileSync(join(scratchPath, 'config.h'), MOCK_CONFIG_H, 'utf-8')
-
-        // 3. Write the preferences JSON with a pre-built SavedConfiguration.
-        const prefsDir = join(testDataDir, 'preferences')
-        mkdirSync(prefsDir, { recursive: true })
-        const savedConfig = {
-            id: 'e2e-test-config',
-            name: 'E2E Test Layout',
-            deviceName: 'Arduino Mega 2560',
-            devicePort: '/dev/ttyACM1',
-            deviceFqbn: 'arduino:avr:mega:cpu=atmega2560',
-            product: 'ex_commandstation',
-            productName: 'EX-CommandStation',
-            version: 'v5.4.0-Prod',
-            repoPath: join(testDataDir, 'scratch'),
-            scratchPath,
-            configFiles: [
-                { name: 'config.h', content: MOCK_CONFIG_H },
-                { name: 'myRoster.h', content: MOCK_ROSTER_H },
-                { name: 'myTurnouts.h', content: MOCK_TURNOUTS_H },
-            ],
-            lastModified: new Date().toISOString(),
-        }
-        writeFileSync(
-            join(prefsDir, 'ex-installer-preferences.json'),
-            JSON.stringify({ savedConfigurations: [savedConfig] }, null, 2),
-            'utf-8',
-        )
-
-        // 4. Launch Electron in mock mode with startup checks skipped.
-        const app = await electron.launch({
-            args: [
-                ELECTRON_MAIN,
-                '--mock',
-                '--skip-startup',
-                `--test-data-dir=${testDataDir}`,
-                // Prevent hardware acceleration issues in headless CI
-                '--disable-gpu',
-                '--no-sandbox',
-                // Auto-dismiss window.confirm() dialogs triggered by delete actions
-                '--js-flags=--no-expose-wasm',
-            ],
-            // Chromium switch: auto-accept all JS dialogs so window.confirm doesn't block
-            chromiumSandbox: false,
-        })
-
+        const { app, testDataDir } = await launchApp(true)
         await use(app)
-
         await app.close()
         rmSync(testDataDir, { recursive: true, force: true })
     },
 
     workspacePage: async ({ electronApp }, use) => {
-        const page = await electronApp.firstWindow()
-        // Auto-accept any window.confirm() dialogs (e.g. from delete confirmations)
-        page.on('dialog', (dialog) => dialog.accept().catch(() => undefined))
-        await page.waitForLoadState('domcontentloaded')
+        await use(await navigateToWorkspace(electronApp))
+    },
 
-        // Dismiss any Syncfusion license alert overlays before interacting.
-        // These fire on file:// origins in production builds when the license key
-        // version doesn't exactly match the installed package version.
-        await page.evaluate(() => {
-            document.querySelectorAll('[id^="ej2-licensing"]').forEach(el => el.remove())
-        }).catch(() => undefined)
+    // ── Real-compiler variants (no --mock-compile) ────────────────────────────
+    // eslint-disable-next-line no-empty-pattern
+    electronAppNative: async ({ }, use) => {
+        const { app, testDataDir } = await launchApp(false)
+        await use(app)
+        await app.close()
+        rmSync(testDataDir, { recursive: true, force: true })
+    },
 
-        // Wait for home screen: the "E2E Test Layout" card should be present.
-        await expect(page.getByText('E2E Test Layout')).toBeVisible({ timeout: 15_000 })
-
-        // Click the card to load the mock workspace.
-        await page.getByText('E2E Test Layout').click()
-
-        // Wait for workspace: the file sidebar should show the Roster tab.
-        await expect(page.getByText('Roster', { exact: true })).toBeVisible({ timeout: 10_000 })
-
-        await use(page)
+    workspacePageNative: async ({ electronAppNative }, use) => {
+        await use(await navigateToWorkspace(electronAppNative))
     },
 })
 

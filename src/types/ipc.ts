@@ -179,6 +179,15 @@ export interface ConfigElectronApi {
     getSkipStartup: () => Promise<boolean>
 }
 
+// ── Window ───────────────────────────────────────────────────────────────────
+
+export interface WindowElectronApi {
+    /** Subscribe to a close-requested event pushed from the main process. */
+    onCloseRequested: (cb: () => void) => () => void
+    /** Tell the main process to forcefully destroy the window. */
+    forceClose: () => Promise<void>
+}
+
 declare global {
     interface Window {
         usb: UsbElectronApi
@@ -188,5 +197,6 @@ declare global {
         files: FileElectronApi
         preferences: PreferencesElectronApi
         config: ConfigElectronApi
+        electronWindow: WindowElectronApi
     }
 }

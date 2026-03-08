@@ -20,11 +20,28 @@ async function openTurnoutEditor(page: import('@playwright/test').Page) {
 async function switchToRaw(page: import('@playwright/test').Page) {
     await page.getByRole('button', { name: 'Raw' }).click()
     await expect(page.locator('div.monaco-editor')).toBeVisible()
+    // Allow rawText binding to propagate to Monaco after visual processing
+    await page.waitForTimeout(400)
 }
 
 async function switchToVisual(page: import('@playwright/test').Page) {
     await page.getByRole('button', { name: 'Visual' }).click()
     await expect(page.locator('nav[aria-label="Turnouts"]')).toBeVisible()
+}
+
+async function getMonacoContent(page: import('@playwright/test').Page): Promise<string> {
+    return page.evaluate(() => {
+        const editorEl = document.querySelector('div.monaco-editor')
+        if (!editorEl) return ''
+        const lines = Array.from(editorEl.querySelectorAll('.view-line'))
+        if (lines.length === 0) {
+            const ta = editorEl.querySelector('textarea.inputarea') as HTMLTextAreaElement | null
+            return ta?.value ?? ''
+        }
+        // Monaco uses non-breaking spaces (\u00a0) in view-line rendering;
+        // normalize to regular spaces so string comparisons work as expected.
+        return lines.map(l => (l.textContent ?? '').replace(/\u00a0/g, ' ')).join('\n')
+    })
 }
 
 async function setMonacoContent(page: import('@playwright/test').Page, text: string) {
@@ -186,5 +203,89 @@ test.describe('Turnout Editor', () => {
         // Go back to raw and verify
         await switchToRaw(page)
         await expect(page.locator('div.monaco-editor')).toContainText('Water Tower Siding')
+    })
+
+    // ── Invalid lines: commenting + toast ────────────────────────────────────
+
+    test('invalid SERVO_TURNOUT line is commented out when switching to visual', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        // Type a malformed SERVO_TURNOUT call (non-integer id)
+        await setMonacoContent(page,
+            'SERVO_TURNOUT(bad input here)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+
+        await switchToVisual(page)
+
+        // Switch back to raw — the bad line must now be commented out
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('SERVO_TURNOUT(bad input here)')
+    })
+
+    test('toast notification appears when invalid turnout line is commented out', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'SERVO_TURNOUT(bad input here)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+
+        await switchToVisual(page)
+
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+        await expect(toast).toContainText('Invalid Lines Commented Out')
+        await expect(toast).toContainText('commented out to prevent data loss')
+    })
+
+    test('commented-out invalid turnout line persists after multiple raw ↔ visual toggles', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        // First pass: introduce a bad line alongside a good one
+        await setMonacoContent(page,
+            'SERVO_TURNOUT(bad input here)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        // Second toggle: raw → visual
+        await switchToRaw(page)
+        await switchToVisual(page)
+
+        // Third toggle: verify [INVALID] is still present
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('// [INVALID]')
+        expect(content).toContain('SERVO_TURNOUT(bad input here)')
+    })
+
+    test('toast does NOT fire a second time for turnouts when toggling again with no new invalid lines', async ({ workspacePage: page }) => {
+        await openTurnoutEditor(page)
+        await switchToRaw(page)
+
+        await setMonacoContent(page,
+            'SERVO_TURNOUT(bad input here)\n' +
+            'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
+        )
+        await switchToVisual(page)
+
+        const toast = page.locator('.e-toast-container .e-toast').first()
+        await expect(toast).toBeVisible({ timeout: 5_000 })
+
+        // Dismiss the toast
+        await toast.locator('.e-toast-close-icon').click()
+        await expect(toast).not.toBeVisible({ timeout: 3_000 })
+
+        // Second toggle — no new invalid lines, toast must NOT reappear
+        await switchToRaw(page)
+        await switchToVisual(page)
+        await page.waitForTimeout(500)
+        await expect(page.locator('.e-toast-container .e-toast')).not.toBeVisible()
     })
 })

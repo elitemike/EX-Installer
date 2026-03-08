@@ -42,6 +42,8 @@ function makeWorkspace(overrides: {
         state,
         cli,
         files,
+        ea: { publish: vi.fn() },
+        toastService: { show: vi.fn() },
         router: { load: vi.fn() },
         dialogService: {},
         preferences: { get: vi.fn(), set: vi.fn() },

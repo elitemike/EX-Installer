@@ -14,6 +14,7 @@ import { FileService } from './services/file.service'
 import { PreferencesService } from './services/preferences.service'
 import { PythonService } from './services/python.service'
 import { UsbService } from './services/usb.service'
+import { ToastService } from './services/toast.service'
 
 // State
 import { InstallerState } from './models/installer-state'
@@ -42,6 +43,7 @@ new Aurelia()
         Registration.singleton(PreferencesService, PreferencesService),
         Registration.singleton(PythonService, PythonService),
         Registration.singleton(UsbService, UsbService),
+        Registration.singleton(ToastService, ToastService),
         Registration.singleton(InstallerState, InstallerState),
         Registration.singleton(ConfigEditorState, ConfigEditorState),
         // Config editor custom elements

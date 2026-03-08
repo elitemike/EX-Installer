@@ -48,7 +48,7 @@
                 "dev",
                 "--inspect=9229",
                 "--",
-                "--mock"
+                "--mock-device"
             ],
             "cwd": "${workspaceFolder}",
             "outputCapture": "std",

@@ -49,6 +49,7 @@ export class Home {
         this.state.selectedProduct = config.product
         this.state.selectedVersion = config.version
         this.state.repoPath = config.repoPath
+        this.state.scratchPath = config.scratchPath
         this.state.configFiles = config.configFiles.map((f) => ({ ...f }))
         this.state.activeConfigId = config.id
         await this.router.load('workspace')

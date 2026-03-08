@@ -31,8 +31,18 @@ export class ConfigEditorState {
     // ── myRoster.h ───────────────────────────────────────────────────────────
     @observable roster: Roster[] = []
 
+    /**
+     * Lines that were detected as invalid ROSTER calls and have been commented
+     * out. Preserved here so they survive the round-trip back to raw view.
+     */
+    rosterPreservedComments = ''
+
     get rosterRaw(): string {
-        return serializeRosterToFile(this.roster)
+        const serialized = serializeRosterToFile(this.roster)
+        if (this.rosterPreservedComments) {
+            return `${this.rosterPreservedComments}\n${serialized}`
+        }
+        return serialized
     }
 
     setRosterFromRaw(text: string): void {
@@ -66,8 +76,18 @@ export class ConfigEditorState {
     // ── myTurnouts.h ─────────────────────────────────────────────────────────
     @observable turnouts: Turnout[] = []
 
+    /**
+     * Lines that were detected as invalid SERVO_TURNOUT calls and have been
+     * commented out. Preserved here so they survive the round-trip back to raw.
+     */
+    turnoutPreservedComments = ''
+
     get turnoutsRaw(): string {
-        return serializeTurnoutToFile(this.turnouts)
+        const serialized = serializeTurnoutToFile(this.turnouts)
+        if (this.turnoutPreservedComments) {
+            return `${this.turnoutPreservedComments}\n${serialized}`
+        }
+        return serialized
     }
 
     setTurnoutsFromRaw(text: string): void {
