@@ -181,6 +181,12 @@ export class Workspace {
             if (this.state.scratchPath) {
                 await this.files.writeFile(`${this.state.scratchPath}/${f.name}`, f.content)
             }
+            // When loaded from a folder that lacks a .ino, the internal scratch path
+            // is used for compilation but we must also write back to the user's
+            // original folder so their changes are persisted there.
+            if (this.state.sourceFolder) {
+                await this.files.writeFile(`${this.state.sourceFolder}/${f.name}`, f.content)
+            }
         }
         this.configEditorState.clearChanges()
         await this.updateSavedConfig()
@@ -308,10 +314,11 @@ export class Workspace {
     async switchToConfig(config: SavedConfiguration): Promise<void> {
         this.showDeviceMenu = false
         this.state.selectedDevice = { name: config.deviceName, port: config.devicePort, fqbn: config.deviceFqbn, protocol: 'serial' }
-        this.state.selectedProduct = config.product
-        this.state.selectedVersion = config.version
+        this.state.selectedProduct = config.product || null
+        this.state.selectedVersion = config.version || null
         this.state.repoPath = config.repoPath
         this.state.scratchPath = config.scratchPath
+        this.state.sourceFolder = config.sourceFolder ?? null
         this.state.configFiles = config.configFiles.map((f) => ({ ...f }))
         this.state.activeConfigId = config.id
         this.activeFileIndex = 0

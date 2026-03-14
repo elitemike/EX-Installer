@@ -6,6 +6,7 @@ import {
     serializeTurnoutToFile,
     parseRosterFromFile,
     parseTurnoutFromFile,
+    buildGeneratorHeader,
 } from '../utils/myAutomationParser'
 
 /**
@@ -38,11 +39,12 @@ export class ConfigEditorState {
     rosterPreservedComments = ''
 
     get rosterRaw(): string {
+        const header = buildGeneratorHeader('myRoster.h', this.installerState.appVersion)
         const serialized = serializeRosterToFile(this.roster)
-        if (this.rosterPreservedComments) {
-            return `${this.rosterPreservedComments}\n${serialized}`
-        }
-        return serialized
+        const body = this.rosterPreservedComments
+            ? `${this.rosterPreservedComments}\n${serialized}`
+            : serialized
+        return `${header}\n${body}`
     }
 
     setRosterFromRaw(text: string): void {
@@ -83,11 +85,12 @@ export class ConfigEditorState {
     turnoutPreservedComments = ''
 
     get turnoutsRaw(): string {
+        const header = buildGeneratorHeader('myTurnouts.h', this.installerState.appVersion)
         const serialized = serializeTurnoutToFile(this.turnouts)
-        if (this.turnoutPreservedComments) {
-            return `${this.turnoutPreservedComments}\n${serialized}`
-        }
-        return serialized
+        const body = this.turnoutPreservedComments
+            ? `${this.turnoutPreservedComments}\n${serialized}`
+            : serialized
+        return `${header}\n${body}`
     }
 
     setTurnoutsFromRaw(text: string): void {
