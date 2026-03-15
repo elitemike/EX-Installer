@@ -38,6 +38,22 @@ test.describe('Compile button', () => {
         await expect(workspacePage.locator('.e-toast-success')).toContainText('Compile Successful')
     })
 
+    test('railroad progress bar is visible while compiling and removed on completion', async ({ workspacePage }) => {
+        await workspacePage.getByRole('button', { name: 'Compile' }).click()
+
+        // The compile-progress custom element and its inner track should
+        // appear as soon as isCompiling flips to true
+        await expect(workspacePage.locator('compile-progress')).toBeVisible()
+        await expect(workspacePage.locator('.rr-wrapper')).toBeVisible()
+
+        // Wait for mock compile to finish
+        await expect(workspacePage.getByText('✓ Success')).toBeVisible({ timeout: 10_000 })
+
+        // If.bind removes the element from the DOM when isCompiling returns to false
+        await expect(workspacePage.locator('compile-progress')).not.toBeVisible()
+        await expect(workspacePage.locator('.rr-wrapper')).not.toBeVisible()
+    })
+
     test('compile output panel shows log text', async ({ workspacePage }) => {
         await workspacePage.getByRole('button', { name: 'Compile' }).click()
         await expect(workspacePage.getByText('✓ Success')).toBeVisible({ timeout: 10_000 })

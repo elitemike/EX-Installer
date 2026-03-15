@@ -27,6 +27,7 @@ import { TurnoutEditorCustomElement } from './components/turnout-editor'
 import { ConfigHEditorCustomElement } from './components/config-h-editor'
 import { FileEditorPanelCustomElement } from './components/file-editor-panel'
 import { ConfirmDialog } from './components/confirm-dialog'
+import { CompileProgressCustomElement } from './components/compile-progress'
 
 registerLicense(syncfusionLicense)
 
@@ -53,6 +54,7 @@ new Aurelia()
         ConfigHEditorCustomElement,
         FileEditorPanelCustomElement,
         ConfirmDialog,
+        CompileProgressCustomElement,
     )
     .app(App)
     .start()
