@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { RosterEditorCustomElement } from '../../src/renderer/src/components/roster-editor'
 import type { ConfigEditorState } from '../../src/renderer/src/models/config-editor-state'
+import {
+    deriveDefineGroups,
+    parseRosterFromFile,
+    serializeRosterToFile,
+} from '../../src/renderer/src/utils/myAutomationParser'
+import type { Roster } from '../../src/renderer/src/utils/myAutomationParser'
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
@@ -150,5 +156,222 @@ describe('RosterEditorCustomElement._processRawLeave', () => {
 
             expect(state.rosterPreservedComments).toBe('')
         })
+    })
+})
+
+// ── deriveDefineGroups ────────────────────────────────────────────────────────
+
+describe('deriveDefineGroups', () => {
+    it('returns empty groups and ungrouped for an empty roster', () => {
+        const result = deriveDefineGroups([])
+        expect(result.groups).toHaveLength(0)
+        expect(result.ungrouped).toHaveLength(0)
+    })
+
+    it('puts all inline entries into ungrouped when none have a functionMacro', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '' },
+            { dccAddress: 3, name: 'C', functions: [], comment: '' },
+        ]
+        const { groups, ungrouped } = deriveDefineGroups(roster)
+        expect(groups).toHaveLength(0)
+        expect(ungrouped).toEqual([0, 1, 2])
+    })
+
+    it('creates one group for two locos sharing the same functionMacro', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '', functionMacro: 'FOO_F' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '', functionMacro: 'FOO_F' },
+        ]
+        const { groups, ungrouped } = deriveDefineGroups(roster)
+        expect(groups).toHaveLength(1)
+        expect(groups[0].macroName).toBe('FOO_F')
+        expect(groups[0].rosterIndices).toEqual([0, 1])
+        expect(ungrouped).toHaveLength(0)
+    })
+
+    it('handles mixed roster: some grouped, some ungrouped', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '', functionMacro: 'GRP_F' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '' },
+            { dccAddress: 3, name: 'C', functions: [], comment: '', functionMacro: 'GRP_F' },
+            { dccAddress: 4, name: 'D', functions: [], comment: '' },
+        ]
+        const { groups, ungrouped } = deriveDefineGroups(roster)
+        expect(groups).toHaveLength(1)
+        expect(groups[0].macroName).toBe('GRP_F')
+        expect(groups[0].rosterIndices).toEqual([0, 2])
+        expect(ungrouped).toEqual([1, 3])
+    })
+
+    it('creates separate groups for different macroNames', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '', functionMacro: 'AAA_F' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '', functionMacro: 'BBB_F' },
+        ]
+        const { groups } = deriveDefineGroups(roster)
+        expect(groups).toHaveLength(2)
+        expect(groups.map(g => g.macroName)).toEqual(['AAA_F', 'BBB_F'])
+    })
+
+    it('copies friendlyName from the first roster entry for the group', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '', functionMacro: 'FOO_F', defineFriendlyName: 'Steam Locos' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '', functionMacro: 'FOO_F', defineFriendlyName: 'Steam Locos' },
+        ]
+        const { groups } = deriveDefineGroups(roster)
+        expect(groups[0].friendlyName).toBe('Steam Locos')
+    })
+
+    it('preserves insertion order of groups', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', functions: [], comment: '', functionMacro: 'ZZZ_F' },
+            { dccAddress: 2, name: 'B', functions: [], comment: '', functionMacro: 'AAA_F' },
+        ]
+        const { groups } = deriveDefineGroups(roster)
+        expect(groups[0].macroName).toBe('ZZZ_F')
+        expect(groups[1].macroName).toBe('AAA_F')
+    })
+})
+
+// ── serializeRosterToFile — macro preservation & friendly names ───────────────
+
+describe('serializeRosterToFile — macro preservation', () => {
+    it('emits #define for a singleton entry with functionMacro', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 42, name: 'Thomas', comment: '',
+                functions: [{ name: 'Horn', isMomentary: false, noFunction: false }],
+                functionMacro: 'THOMAS_F',
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('#define THOMAS_F "Horn"')
+        expect(output).toContain('ROSTER(42, "Thomas", THOMAS_F)')
+    })
+
+    it('preserves the user-assigned functionMacro name (does not replace with auto-generated name)', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', comment: '', functions: [], functionMacro: 'MY_CUSTOM_NAME_F' },
+            { dccAddress: 2, name: 'B', comment: '', functions: [], functionMacro: 'MY_CUSTOM_NAME_F' },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('#define MY_CUSTOM_NAME_F ""')
+        expect(output).toContain('ROSTER(1, "A", MY_CUSTOM_NAME_F)')
+        expect(output).toContain('ROSTER(2, "B", MY_CUSTOM_NAME_F)')
+        // Should NOT emit an auto-generated name
+        expect(output).not.toContain('A_F')
+    })
+
+    it('appends // friendlyName: "..." to the #define line when defineFriendlyName is set', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 1, name: 'Loco A', comment: '',
+                functions: [{ name: 'Horn', isMomentary: false, noFunction: false }],
+                functionMacro: 'STEAM_F',
+                defineFriendlyName: 'Steam Locomotives',
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('#define STEAM_F "Horn" // friendlyName: "Steam Locomotives"')
+    })
+
+    it('does NOT append friendlyName comment when defineFriendlyName is undefined', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 1, name: 'Loco', comment: '',
+                functions: [],
+                functionMacro: 'NO_NAME_F',
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('#define NO_NAME_F ""')
+        expect(output).not.toContain('friendlyName')
+    })
+
+    it('emits inline string for entries with no functionMacro and no duplicate function strings', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', comment: '', functions: [{ name: 'Horn', isMomentary: false, noFunction: false }] },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('ROSTER(1, "A", "Horn")')
+        expect(output).not.toContain('#define')
+    })
+
+    it('auto-groups two inline entries with identical function strings', () => {
+        const roster: Roster[] = [
+            { dccAddress: 1, name: 'A', comment: '', functions: [{ name: 'Horn', isMomentary: false, noFunction: false }] },
+            { dccAddress: 2, name: 'B', comment: '', functions: [{ name: 'Horn', isMomentary: false, noFunction: false }] },
+        ]
+        const output = serializeRosterToFile(roster)
+        // A #define should be auto-emitted
+        expect(output).toMatch(/#define \w+ "Horn"/)
+        // Both ROSTER lines should reference the macro name (not inline "Horn")
+        expect(output).not.toContain('ROSTER(1, "A", "Horn")')
+        expect(output).not.toContain('ROSTER(2, "B", "Horn")')
+    })
+})
+
+// ── parseRosterFromFile — friendly name parsing ───────────────────────────────
+
+describe('parseRosterFromFile — friendly name parsing', () => {
+    it('parses defineFriendlyName from // friendlyName: "..." comment on #define line', () => {
+        const text = [
+            '#define STEAM_F "Horn/Bell" // friendlyName: "Steam Locomotives"',
+            'ROSTER(1, "Loco", STEAM_F)',
+        ].join('\n')
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].defineFriendlyName).toBe('Steam Locomotives')
+    })
+
+    it('sets defineFriendlyName to undefined when no friendlyName comment is present', () => {
+        const text = [
+            '#define MY_F "Horn"',
+            'ROSTER(1, "Loco", MY_F)',
+        ].join('\n')
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].defineFriendlyName).toBeUndefined()
+    })
+
+    it('does not set defineFriendlyName for inline-string-based entries', () => {
+        const text = 'ROSTER(1, "Loco", "Horn")'
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].defineFriendlyName).toBeUndefined()
+    })
+
+    it('roundtrips: serialize with defineFriendlyName, parse back, same value returned', () => {
+        const original: Roster[] = [
+            {
+                dccAddress: 1,
+                name: 'Thomas',
+                comment: '',
+                functions: [{ name: 'Whistle', isMomentary: true, noFunction: false }],
+                functionMacro: 'THOMAS_F',
+                defineFriendlyName: 'Famous Steam Engines',
+            },
+        ]
+        const text = serializeRosterToFile(original)
+        const parsed = parseRosterFromFile(text)
+
+        expect(parsed[0].functionMacro).toBe('THOMAS_F')
+        expect(parsed[0].defineFriendlyName).toBe('Famous Steam Engines')
+        expect(parsed[0].functions[0].name).toBe('Whistle')
+        expect(parsed[0].functions[0].isMomentary).toBe(true)
+    })
+
+    it('roundtrips: two locos sharing a macro with friendly name survive serialise→parse', () => {
+        const original: Roster[] = [
+            { dccAddress: 1, name: 'A', comment: '', functions: [], functionMacro: 'FOO_F', defineFriendlyName: 'Foo Locos' },
+            { dccAddress: 2, name: 'B', comment: '', functions: [], functionMacro: 'FOO_F', defineFriendlyName: 'Foo Locos' },
+        ]
+        const text = serializeRosterToFile(original)
+        const parsed = parseRosterFromFile(text)
+
+        expect(parsed).toHaveLength(2)
+        expect(parsed[0].defineFriendlyName).toBe('Foo Locos')
+        expect(parsed[1].defineFriendlyName).toBe('Foo Locos')
+        expect(parsed[0].functionMacro).toBe('FOO_F')
+        expect(parsed[1].functionMacro).toBe('FOO_F')
     })
 })

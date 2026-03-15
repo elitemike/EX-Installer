@@ -1,6 +1,6 @@
 import { observable, resolve } from 'aurelia'
 import { InstallerState } from './installer-state'
-import type { Roster, Turnout } from '../utils/myAutomationParser'
+import type { Roster, Turnout, RosterFunction } from '../utils/myAutomationParser'
 import {
     serializeRosterToFile,
     serializeTurnoutToFile,
@@ -108,6 +108,36 @@ export class ConfigEditorState {
 
     removeRosterEntry(index: number): void {
         this.roster = this.roster.filter((_, i) => i !== index)
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
+    /** Updates the function list on ALL roster entries that share `macroName`. */
+    updateDefineFunctions(macroName: string, functions: RosterFunction[]): void {
+        const fns = functions.map(f => ({ ...f }))
+        this.roster = this.roster.map(r =>
+            r.functionMacro === macroName ? { ...r, functions: fns } : r,
+        )
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
+    /** Updates the friendly name on ALL roster entries that share `macroName`. */
+    updateDefineFriendlyName(macroName: string, friendlyName: string): void {
+        this.roster = this.roster.map(r =>
+            r.functionMacro === macroName
+                ? { ...r, defineFriendlyName: friendlyName || undefined }
+                : r,
+        )
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
+    /** Renames a #define macro across all roster entries that reference it. */
+    renameMacro(oldName: string, newName: string): void {
+        this.roster = this.roster.map(r =>
+            r.functionMacro === oldName ? { ...r, functionMacro: newName } : r,
+        )
         this.hasChanges = true
         this._syncToInstallerState()
     }

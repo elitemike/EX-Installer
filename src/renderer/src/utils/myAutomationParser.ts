@@ -15,10 +15,50 @@ export interface Roster {
     functions: RosterFunction[];
     comment: string;
     functionMacro?: string;
+    /** Friendly name from `// friendlyName: "..."` at the end of the #define line. */
+    defineFriendlyName?: string;
+}
+
+/** A #define group derived from the roster — one per unique `functionMacro` value. */
+export interface DefineGroup {
+    macroName: string;
+    functions: RosterFunction[];
+    friendlyName?: string;
+    /** Indices into the roster array for every entry that uses this macro. */
+    rosterIndices: number[];
 }
 
 export function getRealFunctions(roster: Roster): RosterFunction[] {
     return roster.functions.filter(f => !f.noFunction);
+}
+
+/**
+ * Derives #define groups and ungrouped indices from the roster array.
+ * Groups are entries that share the same `functionMacro` value.
+ * Ungrouped are entries with no `functionMacro`.
+ */
+export function deriveDefineGroups(roster: Roster[]): { groups: DefineGroup[]; ungrouped: number[] } {
+    const groupMap = new Map<string, DefineGroup>()
+    const ungrouped: number[] = []
+
+    for (let i = 0; i < roster.length; i++) {
+        const entry = roster[i]
+        if (entry.functionMacro) {
+            if (!groupMap.has(entry.functionMacro)) {
+                groupMap.set(entry.functionMacro, {
+                    macroName: entry.functionMacro,
+                    functions: entry.functions.map(f => ({ ...f })),
+                    friendlyName: entry.defineFriendlyName,
+                    rosterIndices: [],
+                })
+            }
+            groupMap.get(entry.functionMacro)!.rosterIndices.push(i)
+        } else {
+            ungrouped.push(i)
+        }
+    }
+
+    return { groups: Array.from(groupMap.values()), ungrouped }
 }
 
 export type TurnoutProfile = 'Instant' | 'Fast' | 'Medium' | 'Slow' | 'Bounce';
@@ -66,12 +106,12 @@ function parseFunction(str: string): RosterFunction {
     return { name: str, isMomentary: false, noFunction: str === '' };
 }
 
-function serializeFunction(f: RosterFunction): string {
+export function serializeFunction(f: RosterFunction): string {
     if (f.noFunction) return f.isMomentary ? '*' : '';
     return f.isMomentary ? `*${f.name}` : f.name;
 }
 
-function sanitizeMacroName(name: string): string {
+export function sanitizeMacroName(name: string): string {
     return name.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') + '_F';
 }
 
@@ -108,12 +148,14 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
         .map(line => (line.trimStart().startsWith('//') ? '' : line))
         .join('\n');
 
-    // Parse #define macros for function lists
-    const defineRegex = /^\s*#define\s+(\w+)\s+"([^"]*)"/gm;
+    // Parse #define macros for function lists (with optional // friendlyName: "...")
+    const defineRegex = /^\s*#define\s+(\w+)\s+"([^"]*)"(?:\s*\/\/\s*friendlyName:\s*"([^"]*)")?/gm;
     const macroMap: Record<string, string> = {};
+    const friendlyNameMap: Record<string, string> = {};
     let defMatch: RegExpExecArray | null;
     while ((defMatch = defineRegex.exec(uncommentedContent)) !== null) {
         macroMap[defMatch[1]] = defMatch[2];
+        if (defMatch[3] !== undefined) friendlyNameMap[defMatch[1]] = defMatch[3];
     }
 
     const rosterRegex = /ROSTER\s*\(\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*([A-Za-z0-9_]+|"[^"]*")\s*\)(?:\s*\/\/\s*(.*))?/g;
@@ -140,6 +182,7 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
             functions: functionsString.split('/').map(parseFunction),
             comment,
             functionMacro,
+            defineFriendlyName: functionMacro ? friendlyNameMap[functionMacro] : undefined,
         });
     }
 
@@ -148,53 +191,62 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
 
 export function serializeRosterToFile(roster: Roster[]): string {
     const lines: string[] = [];
-    const funcListToNames: Record<string, string[]> = {};
 
+    // ── 1. Collect user-assigned macros (preserve name + friendly name) ──────
+    // Map<macroName, { funcString, friendlyName }>
+    const userMacros = new Map<string, { funcString: string; friendlyName?: string }>()
     for (const entry of roster) {
-        const funcString = entry.functions.map(serializeFunction).join('/');
-        if (!funcListToNames[funcString]) {
-            funcListToNames[funcString] = [];
-        }
-        funcListToNames[funcString].push(entry.name);
-    }
-
-    const funcListToMacro: Record<string, string> = {};
-    const usedMacros = new Set<string>();
-
-    for (const [funcString, names] of Object.entries(funcListToNames)) {
-        if (names.length > 1) {
-            let baseName = sanitizeMacroName(names[0]);
-            let macroName = baseName;
-            let counter = 1;
-            while (usedMacros.has(macroName)) {
-                macroName = `${baseName}_${counter++}`;
-            }
-            usedMacros.add(macroName);
-            funcListToMacro[funcString] = macroName;
-            lines.push(`#define ${macroName} "${funcString}"`);
+        if (entry.functionMacro && !userMacros.has(entry.functionMacro)) {
+            userMacros.set(entry.functionMacro, {
+                funcString: entry.functions.map(serializeFunction).join('/'),
+                friendlyName: entry.defineFriendlyName,
+            })
         }
     }
 
-    if (Object.keys(funcListToMacro).length > 0) {
-        lines.push('');
-    }
-
+    // ── 2. Auto-group inline entries with identical function strings (2+) ────
+    const inlineGroups = new Map<string, Roster[]>()
     for (const entry of roster) {
-        const funcString = entry.functions.map(serializeFunction).join('/');
-        let funcField: string;
-        if (funcListToMacro[funcString]) {
-            funcField = funcListToMacro[funcString];
-        } else {
-            funcField = `"${funcString}"`;
+        if (!entry.functionMacro) {
+            const fs = entry.functions.map(serializeFunction).join('/')
+            if (!inlineGroups.has(fs)) inlineGroups.set(fs, [])
+            inlineGroups.get(fs)!.push(entry)
         }
-        let line = `ROSTER(${entry.dccAddress}, "${entry.name}", ${funcField})`;
-        if (entry.comment) {
-            line += ` // ${entry.comment}`;
-        }
-        lines.push(line);
     }
 
-    return lines.join('\n');
+    const autoMacros = new Map<string, string>() // funcString -> macroName
+    const usedMacros = new Set(userMacros.keys())
+    for (const [fs, entries] of inlineGroups) {
+        if (entries.length > 1) {
+            let base = sanitizeMacroName(entries[0].name)
+            let macroName = base
+            let counter = 1
+            while (usedMacros.has(macroName)) macroName = `${base}_${counter++}`
+            usedMacros.add(macroName)
+            autoMacros.set(fs, macroName)
+            userMacros.set(macroName, { funcString: fs })
+        }
+    }
+
+    // ── 3. Emit #define lines ────────────────────────────────────────────────
+    for (const [macroName, { funcString, friendlyName }] of userMacros) {
+        let defineLine = `#define ${macroName} "${funcString}"`
+        if (friendlyName) defineLine += ` // friendlyName: "${friendlyName}"`
+        lines.push(defineLine)
+    }
+    if (userMacros.size > 0) lines.push('')
+
+    // ── 4. Emit ROSTER lines ─────────────────────────────────────────────────
+    for (const entry of roster) {
+        const fs = entry.functions.map(serializeFunction).join('/')
+        const macroName = entry.functionMacro ?? autoMacros.get(fs)
+        const funcField = macroName ? macroName : `"${fs}"`
+        let line = `ROSTER(${entry.dccAddress}, "${entry.name}", ${funcField})`
+        if (entry.comment) line += ` // ${entry.comment}`
+        lines.push(line)
+    }
+
+    return lines.join('\n')
 }
 
 // ─── Turnout parsing ─────────────────────────────────────────────────────────

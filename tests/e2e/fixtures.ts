@@ -28,6 +28,14 @@ export const MOCK_ROSTER_H = [
     'ROSTER(5, "Percy", "LIGHT/HORN")',
 ].join('\n')
 
+/** Roster with a shared #define group (Thomas + Percy) and one ungrouped loco (Gordon). */
+export const MOCK_ROSTER_H_GROUPED = [
+    '#define STEAM_F "LIGHT/HORN/*WHISTLE/BELL" // friendlyName: "Steam Engines"',
+    'ROSTER(3, "Thomas", STEAM_F)',
+    'ROSTER(5, "Percy", STEAM_F)',
+    'ROSTER(6, "Gordon", "LIGHT/HORN")',
+].join('\n')
+
 export const MOCK_TURNOUTS_H = [
     'SERVO_TURNOUT(200, 25, 410, 205, Slow, "Main Line Junction")',
     'SERVO_TURNOUT(201, 26, 410, 205, Fast, "Yard Entry")',
@@ -78,6 +86,8 @@ interface WorkspaceFixtures {
     workspacePageNative: Page
     ioExpanderApp: ElectronApplication
     ioExpanderPage: Page
+    rosterGroupedApp: ElectronApplication
+    rosterGroupedPage: Page
 }
 
 // ── Shared: seed temp dir + launch Electron ───────────────────────────────────
@@ -192,6 +202,57 @@ async function launchIOExpanderApp(): Promise<{ app: ElectronApplication; testDa
     return { app, testDataDir }
 }
 
+async function launchRosterGroupedApp(): Promise<{ app: ElectronApplication; testDataDir: string }> {
+    const testDataDir = mkdtempSync(join(tmpdir(), 'ex-installer-e2e-grp-'))
+
+    const scratchPath = join(testDataDir, 'scratch', 'CommandStation-EX')
+    mkdirSync(scratchPath, { recursive: true })
+    writeFileSync(join(scratchPath, 'myRoster.h'), MOCK_ROSTER_H_GROUPED, 'utf-8')
+    writeFileSync(join(scratchPath, 'myTurnouts.h'), MOCK_TURNOUTS_H, 'utf-8')
+    writeFileSync(join(scratchPath, 'config.h'), MOCK_CONFIG_H, 'utf-8')
+    writeFileSync(join(scratchPath, 'CommandStation-EX.ino'), MOCK_SKETCH_INO, 'utf-8')
+
+    const prefsDir = join(testDataDir, 'preferences')
+    mkdirSync(prefsDir, { recursive: true })
+    const savedConfig = {
+        id: 'e2e-grouped-roster',
+        name: 'E2E Test Layout',
+        deviceName: 'Arduino Mega 2560',
+        devicePort: '/dev/ttyACM1',
+        deviceFqbn: 'arduino:avr:mega:cpu=atmega2560',
+        product: 'ex_commandstation',
+        productName: 'EX-CommandStation',
+        version: 'v5.4.0-Prod',
+        repoPath: join(testDataDir, 'scratch'),
+        scratchPath,
+        configFiles: [
+            { name: 'config.h', content: MOCK_CONFIG_H },
+            { name: 'myRoster.h', content: MOCK_ROSTER_H_GROUPED },
+            { name: 'myTurnouts.h', content: MOCK_TURNOUTS_H },
+        ],
+        lastModified: new Date().toISOString(),
+    }
+    writeFileSync(
+        join(prefsDir, 'ex-installer-preferences.json'),
+        JSON.stringify({ savedConfigurations: [savedConfig] }, null, 2),
+        'utf-8',
+    )
+
+    const args = [
+        ELECTRON_MAIN,
+        '--mock-device',
+        '--mock-compile',
+        '--skip-startup',
+        `--test-data-dir=${testDataDir}`,
+        '--disable-gpu',
+        '--no-sandbox',
+        '--js-flags=--no-expose-wasm',
+    ]
+
+    const app = await electron.launch({ args, chromiumSandbox: false })
+    return { app, testDataDir }
+}
+
 // ── Shared test base with workspace fixtures ──────────────────────────────────
 
 async function navigateToIOExpanderWorkspace(app: ElectronApplication): Promise<Page> {
@@ -245,6 +306,19 @@ export const test = base.extend<WorkspaceFixtures>({
 
     ioExpanderPage: async ({ ioExpanderApp }, use) => {
         await use(await navigateToIOExpanderWorkspace(ioExpanderApp))
+    },
+
+    // ── Grouped roster workspace ──────────────────────────────────────────────
+    // eslint-disable-next-line no-empty-pattern
+    rosterGroupedApp: async ({ }, use) => {
+        const { app, testDataDir } = await launchRosterGroupedApp()
+        await use(app)
+        await app.close()
+        rmSync(testDataDir, { recursive: true, force: true })
+    },
+
+    rosterGroupedPage: async ({ rosterGroupedApp }, use) => {
+        await use(await navigateToWorkspace(rosterGroupedApp))
     },
 })
 
