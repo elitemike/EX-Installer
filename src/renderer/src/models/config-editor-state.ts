@@ -230,7 +230,7 @@ export class ConfigEditorState {
     loadFromInstallerState(): void {
         const files = this.installerState.configFiles
         for (const f of files) {
-            if (f.name === 'config.h') {
+            if (f.name === 'config.h' || f.name === 'myConfig.h') {
                 this.configHContent = f.content
             } else if (f.name === 'myRoster.h') {
                 this.roster = parseRosterFromFile(f.content)
@@ -260,7 +260,7 @@ export class ConfigEditorState {
     // ── Write back to InstallerState.configFiles ──────────────────────────────
     private _syncToInstallerState(): void {
         for (const f of this.installerState.configFiles) {
-            if (f.name === 'config.h') {
+            if (f.name === 'config.h' || f.name === 'myConfig.h') {
                 f.content = this.configHContent
             } else if (f.name === 'myRoster.h') {
                 f.content = this.rosterRaw
@@ -292,7 +292,7 @@ export class ConfigEditorState {
     syncConfigH(): void {
         this.hasChanges = true
         for (const f of this.installerState.configFiles) {
-            if (f.name === 'config.h') {
+            if (f.name === 'config.h' || f.name === 'myConfig.h') {
                 f.content = this.configHContent
             }
         }

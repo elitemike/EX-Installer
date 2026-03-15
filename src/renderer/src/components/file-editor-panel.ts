@@ -28,7 +28,7 @@ export class FileEditorPanelCustomElement {
     get currentView(): 'configH' | 'roster' | 'turnouts' | 'automation' | 'generic' | 'none' {
         const name = this.activeFile?.name
         if (!name) return 'none'
-        if (name === 'config.h') return 'configH'
+        if (name === 'config.h' || name === 'myConfig.h') return 'configH'
         if (name === 'myRoster.h') return 'roster'
         if (name === 'myTurnouts.h') return 'turnouts'
         if (name === 'myAutomation.h') return 'automation'

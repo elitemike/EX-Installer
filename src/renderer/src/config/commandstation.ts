@@ -1,11 +1,12 @@
 /**
- * EX-CommandStation config.h and myAutomation.h generators
+ * EX-CommandStation config.h and myAutomation.h generators + parser
  * Ported from ex_installer/ex_commandstation.py
  */
 
 export interface CommandStationConfigOptions {
     motorDriver: string
     display: string
+    scrollMode: number // 0=continuous, 1=by page, 2=by row
     enableWifi: boolean
     wifiMode: string // 'ap' | 'sta'
     wifiHostname: string
@@ -18,6 +19,30 @@ export interface CommandStationConfigOptions {
     trackBLocoId: number
     enablePowerOnStart: boolean
     disableEeprom: boolean
+    enableEthernet: boolean
+    disableProg: boolean
+}
+
+export function defaultCommandStationConfig(): CommandStationConfigOptions {
+    return {
+        motorDriver: 'STANDARD_MOTOR_SHIELD',
+        display: 'NONE',
+        scrollMode: 1,
+        enableWifi: false,
+        wifiMode: 'ap',
+        wifiHostname: 'dccex',
+        wifiSsid: '',
+        wifiPassword: '',
+        wifiChannel: 1,
+        trackAMode: 'MAIN',
+        trackBMode: 'PROG',
+        trackALocoId: 0,
+        trackBLocoId: 0,
+        enablePowerOnStart: false,
+        disableEeprom: false,
+        enableEthernet: false,
+        disableProg: false,
+    }
 }
 
 /**
@@ -29,15 +54,14 @@ export function generateCommandStationConfig(opts: CommandStationConfigOptions):
         '',
     ]
 
-    // Always-required defaults (matches Python default_config_options)
+    // Always-required defaults
     lines.push('#define IP_PORT 2560')
-    lines.push('#define SCROLLMODE 1')
     lines.push('')
 
     // Motor driver
     lines.push(`#define MOTOR_SHIELD_TYPE ${opts.motorDriver}`)
 
-    // Display
+    // Display + scroll mode
     if (opts.display !== 'NONE') {
         if (opts.display === 'OLED_128x32') {
             lines.push('#define OLED_DRIVER 128,32')
@@ -50,29 +74,38 @@ export function generateCommandStationConfig(opts: CommandStationConfigOptions):
         } else if (opts.display === 'LCD_20x4') {
             lines.push('#define LCD_DRIVER 0x27,20,4')
         }
+        lines.push(`#define SCROLLMODE ${opts.scrollMode}`)
     }
 
-    // WiFi
+    // WiFi (mutually exclusive with Ethernet)
     if (opts.enableWifi) {
         lines.push(`#define WIFI_HOSTNAME "${opts.wifiHostname || 'dccex'}"`)
         if (opts.wifiMode === 'ap') {
-            lines.push('#define WIFI_SSID "Your network name"')
-            if (opts.wifiPassword) {
-                lines.push(`#define WIFI_PASSWORD "${opts.wifiPassword}"`)
-            } else {
-                lines.push('#define WIFI_PASSWORD "Your network passwd"')
-            }
-        } else {
-            // Station mode
+            // Access Point mode — WIFI_FORCE_AP is required; SSID/password are optional AP overrides
+            lines.push('#define WIFI_FORCE_AP true')
             if (opts.wifiSsid) {
                 lines.push(`#define WIFI_SSID "${opts.wifiSsid}"`)
             }
             if (opts.wifiPassword) {
                 lines.push(`#define WIFI_PASSWORD "${opts.wifiPassword}"`)
             }
+            lines.push('#define ENABLE_WIFI true')
+            lines.push(`#define WIFI_CHANNEL ${opts.wifiChannel}`)
+        } else {
+            // Station mode — join existing network; channel is ignored
+            if (opts.wifiSsid) {
+                lines.push(`#define WIFI_SSID "${opts.wifiSsid}"`)
+            }
+            if (opts.wifiPassword) {
+                lines.push(`#define WIFI_PASSWORD "${opts.wifiPassword}"`)
+            }
+            lines.push('#define ENABLE_WIFI true')
         }
-        lines.push('#define ENABLE_WIFI true')
-        lines.push(`#define WIFI_CHANNEL ${opts.wifiChannel}`)
+    }
+
+    // Ethernet (mutually exclusive with WiFi)
+    if (opts.enableEthernet && !opts.enableWifi) {
+        lines.push('#define ENABLE_ETHERNET true')
     }
 
     // Disable EEPROM
@@ -80,8 +113,79 @@ export function generateCommandStationConfig(opts: CommandStationConfigOptions):
         lines.push('#define DISABLE_EEPROM')
     }
 
+    // Disable programming track
+    if (opts.disableProg) {
+        lines.push('#define DISABLE_PROG')
+    }
+
     lines.push('')
     return lines.join('\n') + '\n'
+}
+
+/**
+ * Parse an existing config.h back into CommandStationConfigOptions.
+ * Returns defaults for any unrecognised or missing values.
+ */
+export function parseCommandStationConfig(content: string): CommandStationConfigOptions {
+    const opts = defaultCommandStationConfig()
+
+    const def = (key: string): string | undefined => {
+        const m = content.match(new RegExp(`^#define\\s+${key}\\s+(.+)$`, 'm'))
+        return m?.[1]?.trim()
+    }
+    const has = (key: string): boolean =>
+        new RegExp(`^#define\\s+${key}(?:\\s|$)`, 'm').test(content)
+
+    const motorDriver = def('MOTOR_SHIELD_TYPE')
+    if (motorDriver) opts.motorDriver = motorDriver
+
+    if (has('OLED_DRIVER')) {
+        const v = def('OLED_DRIVER')
+        if (v === '128,32') opts.display = 'OLED_128x32'
+        else if (v === '128,64') opts.display = 'OLED_128x64'
+        else if (v === '132,64') opts.display = 'OLED_132x64'
+    } else if (has('LCD_DRIVER')) {
+        const v = def('LCD_DRIVER')
+        if (v?.startsWith('0x27,16,2')) opts.display = 'LCD_16x2'
+        else if (v?.startsWith('0x27,20,4')) opts.display = 'LCD_20x4'
+    }
+
+    const scrollMode = def('SCROLLMODE')
+    if (scrollMode !== undefined) {
+        const n = parseInt(scrollMode, 10)
+        if (n === 0 || n === 1 || n === 2) opts.scrollMode = n
+    }
+
+    if (has('ENABLE_WIFI')) opts.enableWifi = true
+    if (has('ENABLE_ETHERNET')) opts.enableEthernet = true
+    if (has('DISABLE_EEPROM')) opts.disableEeprom = true
+    if (has('DISABLE_PROG')) opts.disableProg = true
+
+    const hostname = def('WIFI_HOSTNAME')
+    if (hostname) opts.wifiHostname = hostname.replace(/^"|"$/g, '')
+
+    // WIFI_FORCE_AP explicitly means AP mode; otherwise a real SSID implies station mode
+    if (has('WIFI_FORCE_AP')) {
+        opts.wifiMode = 'ap'
+    }
+
+    const ssid = def('WIFI_SSID')
+    if (ssid) {
+        const unquoted = ssid.replace(/^"|"$/g, '')
+        opts.wifiSsid = unquoted
+        // A real (non-placeholder) SSID without WIFI_FORCE_AP means station mode
+        if (!has('WIFI_FORCE_AP') && unquoted !== 'Your network name' && unquoted.trim() !== '') {
+            opts.wifiMode = 'sta'
+        }
+    }
+
+    const password = def('WIFI_PASSWORD')
+    if (password) opts.wifiPassword = password.replace(/^"|"$/g, '')
+
+    const channel = def('WIFI_CHANNEL')
+    if (channel) opts.wifiChannel = parseInt(channel, 10) || 1
+
+    return opts
 }
 
 export interface MyAutomationOptions {
@@ -112,14 +216,12 @@ export function generateMyAutomation(opts: MyAutomationOptions): string {
         }
 
         if (hasTrackManager) {
-            // Track A
             if (opts.trackAMode.startsWith('DC')) {
                 lines.push(`SETLOCO(${opts.trackALocoId}) SET_TRACK(A,${opts.trackAMode})`)
             } else {
                 lines.push(`SET_TRACK(A,${opts.trackAMode})`)
             }
 
-            // Track B
             if (opts.trackBMode.startsWith('DC')) {
                 lines.push(`SETLOCO(${opts.trackBLocoId}) SET_TRACK(B,${opts.trackBMode})`)
             } else {
@@ -130,7 +232,6 @@ export function generateMyAutomation(opts: MyAutomationOptions): string {
         lines.push('DONE')
         lines.push('')
 
-        // Roster entries for DC tracks
         if (hasTrackManager) {
             if (opts.trackAMode.startsWith('DC')) {
                 lines.push(`ROSTER(${opts.trackALocoId},"DC TRACK A","/* /")`)

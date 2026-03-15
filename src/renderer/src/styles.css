@@ -3,11 +3,13 @@
 @import "@fontsource/roboto/500.css";
 @import "@fontsource/roboto/700.css";
 @import "tailwindcss";
-@import "@syncfusion/ej2-base/styles/tailwind.css";
-@import "@syncfusion/ej2-buttons/styles/tailwind.css";
+@import "@syncfusion/ej2-base/styles/tailwind-dark.css";
+@import "@syncfusion/ej2-buttons/styles/tailwind-dark.css";
+@import "@syncfusion/ej2-inputs/styles/tailwind-dark.css";
+@import "@syncfusion/ej2-dropdowns/styles/tailwind-dark.css";
 @import "@syncfusion/ej2-layouts/styles/tailwind-dark.css";
-@import "@syncfusion/ej2-navigations/styles/tailwind.css";
-@import "@syncfusion/ej2-navigations/styles/stepper/tailwind.css";
+@import "@syncfusion/ej2-navigations/styles/tailwind-dark.css";
+@import "@syncfusion/ej2-navigations/styles/stepper/tailwind-dark.css";
 @import "@syncfusion/ej2-notifications/styles/tailwind-dark.css";
 
 /* ── Set Roboto as the global font ────────────────────────────────────── */
@@ -18,6 +20,12 @@
 body,
 * {
     font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Electron app — suppress browser default focus rings on buttons */
+button:focus,
+button:focus-visible {
+    outline: none;
 }
 
 /* ── Custom element host sizing ───────────────────────────────────────── */

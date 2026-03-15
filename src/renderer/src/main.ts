@@ -29,7 +29,26 @@ import { FileEditorPanelCustomElement } from './components/file-editor-panel'
 import { ConfirmDialog } from './components/confirm-dialog'
 import { CompileProgressCustomElement } from './components/compile-progress'
 
+// Per-product visual config forms
+import { CommandstationConfigFormCustomElement } from './components/config-forms/commandstation-config-form'
+import { IOExpanderConfigFormCustomElement } from './components/config-forms/ioexpander-config-form'
+
 registerLicense(syncfusionLicense)
+
+// Suppress mouse-click focus rings on non-SF buttons.
+// preventDefault on mousedown prevents focus being applied on click while
+// leaving keyboard Tab navigation unaffected. SF buttons (.e-btn) are
+// excluded so they retain their own focus styling.
+document.addEventListener(
+    'mousedown',
+    (e) => {
+        const btn = (e.target as Element).closest?.('button')
+        if (btn && !btn.classList.contains('e-btn')) {
+            e.preventDefault()
+        }
+    },
+    { capture: true },
+)
 
 new Aurelia()
     .register(
@@ -55,6 +74,8 @@ new Aurelia()
         FileEditorPanelCustomElement,
         ConfirmDialog,
         CompileProgressCustomElement,
+        CommandstationConfigFormCustomElement,
+        IOExpanderConfigFormCustomElement,
     )
     .app(App)
     .start()

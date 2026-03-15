@@ -3,11 +3,13 @@
 
         <!-- Tab strip: Visual | Raw -->
         <div class="flex items-center gap-0 border-b border-white/10 bg-gray-900/60 shrink-0 px-2">
-            <button click.trigger="setTab('visual')" class="px-4 py-2.5 text-sm font-medium border-b-2 transition-all"
+            <button click.trigger="setTab('visual')"
+                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-all focus:outline-none"
                 class.bind="activeTab === 'visual' ? 'border-blue-500 text-white' : 'border-transparent text-gray-400 hover:text-white'">
                 Visual
             </button>
-            <button click.trigger="setTab('raw')" class="px-4 py-2.5 text-sm font-medium border-b-2 transition-all"
+            <button click.trigger="setTab('raw')"
+                class="px-4 py-2.5 text-sm font-medium border-b-2 transition-all focus:outline-none"
                 class.bind="activeTab === 'raw' ? 'border-blue-500 text-white' : 'border-transparent text-gray-400 hover:text-white'">
                 Raw
             </button>

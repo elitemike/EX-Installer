@@ -6,6 +6,8 @@ function baseOpts(overrides: Partial<IOExpanderConfigOptions> = {}): IOExpanderC
         i2cAddress: 0x65,
         disablePullups: false,
         testMode: null,
+        enableDiag: false,
+        diagConfigDelay: 5,
         ...overrides,
     }
 }

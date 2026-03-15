@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
     generateCommandStationConfig,
+    parseCommandStationConfig,
     generateMyAutomation,
     type CommandStationConfigOptions,
     type MyAutomationOptions,
@@ -12,6 +13,7 @@ function baseOpts(overrides: Partial<CommandStationConfigOptions> = {}): Command
     return {
         motorDriver: 'STANDARD_MOTOR_SHIELD',
         display: 'NONE',
+        scrollMode: 1,
         enableWifi: false,
         wifiMode: 'ap',
         wifiHostname: 'dccex',
@@ -24,6 +26,8 @@ function baseOpts(overrides: Partial<CommandStationConfigOptions> = {}): Command
         trackBLocoId: 4,
         enablePowerOnStart: false,
         disableEeprom: false,
+        enableEthernet: false,
+        disableProg: false,
         ...overrides,
     }
 }
@@ -48,9 +52,19 @@ describe('generateCommandStationConfig', () => {
             expect(out).toContain('#define IP_PORT 2560')
         })
 
-        it('includes #define SCROLLMODE 1', () => {
-            const out = generateCommandStationConfig(baseOpts())
+        it('omits SCROLLMODE when no display selected', () => {
+            const out = generateCommandStationConfig(baseOpts({ display: 'NONE' }))
+            expect(out).not.toContain('#define SCROLLMODE')
+        })
+
+        it('includes SCROLLMODE when display is selected', () => {
+            const out = generateCommandStationConfig(baseOpts({ display: 'OLED_128x32', scrollMode: 1 }))
             expect(out).toContain('#define SCROLLMODE 1')
+        })
+
+        it('uses configured scrollMode value', () => {
+            const out = generateCommandStationConfig(baseOpts({ display: 'LCD_16x2', scrollMode: 2 }))
+            expect(out).toContain('#define SCROLLMODE 2')
         })
 
         it('includes correct MOTOR_SHIELD_TYPE', () => {
@@ -119,14 +133,19 @@ describe('generateCommandStationConfig', () => {
             expect(out).toContain('#define WIFI_HOSTNAME "dccex"')
         })
 
-        it('includes default WIFI_SSID placeholder', () => {
+        it('omits WIFI_SSID when no ssid given in AP mode', () => {
             const out = generateCommandStationConfig(baseOpts({ enableWifi: true, wifiMode: 'ap' }))
-            expect(out).toContain('#define WIFI_SSID "Your network name"')
+            expect(out).not.toContain('#define WIFI_SSID')
         })
 
-        it('includes WIFI_PASSWORD placeholder when no password given', () => {
+        it('includes WIFI_FORCE_AP true in AP mode', () => {
+            const out = generateCommandStationConfig(baseOpts({ enableWifi: true, wifiMode: 'ap' }))
+            expect(out).toContain('#define WIFI_FORCE_AP true')
+        })
+
+        it('omits WIFI_PASSWORD when no password given in AP mode', () => {
             const out = generateCommandStationConfig(baseOpts({ enableWifi: true, wifiMode: 'ap', wifiPassword: '' }))
-            expect(out).toContain('#define WIFI_PASSWORD "Your network passwd"')
+            expect(out).not.toContain('#define WIFI_PASSWORD')
         })
 
         it('includes custom WIFI_PASSWORD when provided', () => {
@@ -182,6 +201,78 @@ describe('generateCommandStationConfig', () => {
         it('IP_PORT appears before MOTOR_SHIELD_TYPE', () => {
             const out = generateCommandStationConfig(baseOpts())
             expect(out.indexOf('#define IP_PORT')).toBeLessThan(out.indexOf('#define MOTOR_SHIELD_TYPE'))
+        })
+    })
+})
+
+// ── parseCommandStationConfig — round-trip tests ──────────────────────────────
+
+describe('parseCommandStationConfig', () => {
+    function roundTrip(overrides: Partial<CommandStationConfigOptions>) {
+        const original = baseOpts(overrides)
+        const generated = generateCommandStationConfig(original)
+        return parseCommandStationConfig(generated)
+    }
+
+    describe('display', () => {
+        it('round-trips NONE display', () => {
+            expect(roundTrip({ display: 'NONE' }).display).toBe('NONE')
+        })
+
+        it('round-trips OLED_128x32', () => {
+            expect(roundTrip({ display: 'OLED_128x32' }).display).toBe('OLED_128x32')
+        })
+
+        it('round-trips OLED_128x64', () => {
+            expect(roundTrip({ display: 'OLED_128x64' }).display).toBe('OLED_128x64')
+        })
+
+        it('round-trips OLED_132x64', () => {
+            expect(roundTrip({ display: 'OLED_132x64' }).display).toBe('OLED_132x64')
+        })
+
+        it('round-trips LCD_16x2', () => {
+            expect(roundTrip({ display: 'LCD_16x2' }).display).toBe('LCD_16x2')
+        })
+
+        it('round-trips LCD_20x4', () => {
+            expect(roundTrip({ display: 'LCD_20x4' }).display).toBe('LCD_20x4')
+        })
+
+        it('round-trips scrollMode 0', () => {
+            expect(roundTrip({ display: 'OLED_128x32', scrollMode: 0 }).scrollMode).toBe(0)
+        })
+
+        it('round-trips scrollMode 2', () => {
+            expect(roundTrip({ display: 'OLED_128x32', scrollMode: 2 }).scrollMode).toBe(2)
+        })
+    })
+
+    describe('WiFi', () => {
+        it('round-trips AP mode (WIFI_FORCE_AP)', () => {
+            const parsed = roundTrip({ enableWifi: true, wifiMode: 'ap' })
+            expect(parsed.enableWifi).toBe(true)
+            expect(parsed.wifiMode).toBe('ap')
+        })
+
+        it('round-trips station mode with SSID', () => {
+            const parsed = roundTrip({ enableWifi: true, wifiMode: 'sta', wifiSsid: 'HomeNet', wifiPassword: 'secret' })
+            expect(parsed.wifiMode).toBe('sta')
+            expect(parsed.wifiSsid).toBe('HomeNet')
+            expect(parsed.wifiPassword).toBe('secret')
+        })
+
+        it('round-trips AP mode with custom SSID', () => {
+            const parsed = roundTrip({ enableWifi: true, wifiMode: 'ap', wifiSsid: 'MyAP', wifiChannel: 6 })
+            expect(parsed.wifiMode).toBe('ap')
+            expect(parsed.wifiSsid).toBe('MyAP')
+            expect(parsed.wifiChannel).toBe(6)
+        })
+    })
+
+    describe('motor driver', () => {
+        it('round-trips custom motor driver', () => {
+            expect(roundTrip({ motorDriver: 'EX8874' }).motorDriver).toBe('EX8874')
         })
     })
 })
