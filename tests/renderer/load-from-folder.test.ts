@@ -1,6 +1,7 @@
 /**
- * Unit tests: generator header utilities (myAutomationParser.ts) and
- * device header utilities (configHeaderParser.ts).
+ * Unit tests: generator header utilities (myAutomationParser.ts),
+ * device header utilities (configHeaderParser.ts), and
+ * myAutomation.h automation content helpers (config-editor-state.ts).
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -21,6 +22,10 @@ import {
     serializeRosterToFile,
     serializeTurnoutToFile,
 } from '../../src/renderer/src/utils/myAutomationParser'
+import {
+    extractAutomationCustomContent,
+    MANAGED_INCLUDES_TAG,
+} from '../../src/renderer/src/models/config-editor-state'
 
 // ── hasGeneratorHeader ────────────────────────────────────────────────────────
 
@@ -353,5 +358,115 @@ describe('reconcileDevicePort', () => {
         ]
         const { device } = reconcileDevicePort(STORED, connected)
         expect(device.port).toBe('/dev/ttyACM0')
+    })
+})
+
+// ── MANAGED_INCLUDES_TAG ──────────────────────────────────────────────────────
+
+describe('MANAGED_INCLUDES_TAG', () => {
+    it('is a comment line', () => {
+        expect(MANAGED_INCLUDES_TAG.trimStart()).toMatch(/^\/\//)
+    })
+
+    it('references EX-Installer', () => {
+        expect(MANAGED_INCLUDES_TAG).toContain('EX-Installer')
+    })
+})
+
+// ── extractAutomationCustomContent ───────────────────────────────────────────
+
+describe('extractAutomationCustomContent', () => {
+    it('returns empty string for empty input', () => {
+        expect(extractAutomationCustomContent('')).toBe('')
+    })
+
+    it('returns empty string when file contains only the managed block', () => {
+        const block = [
+            MANAGED_INCLUDES_TAG,
+            '// These #includes are managed by EX-Installer.',
+            '// Do not remove them — they are required for the installer to function correctly.',
+            '#include "myRoster.h"',
+            '#include "myTurnouts.h"',
+            MANAGED_INCLUDES_TAG,
+        ].join('\n')
+        expect(extractAutomationCustomContent(block)).toBe('')
+    })
+
+    it('preserves custom code that follows the managed block', () => {
+        const customCode = 'SEQUENCE(100)\n  FWD(50) DELAY(2000) STOP\nDONE'
+        const block = [
+            MANAGED_INCLUDES_TAG,
+            '#include "myRoster.h"',
+            MANAGED_INCLUDES_TAG,
+            '',
+            customCode,
+        ].join('\n')
+        expect(extractAutomationCustomContent(block)).toBe(customCode)
+    })
+
+    it('strips bare #include "myRoster.h" outside the managed block', () => {
+        const input = '#include "myRoster.h"\nSEQUENCE(100)\nDONE'
+        expect(extractAutomationCustomContent(input)).toBe('SEQUENCE(100)\nDONE')
+    })
+
+    it('strips bare #include "myTurnouts.h" outside the managed block', () => {
+        const input = '#include "myTurnouts.h"\nALIAS(MAIN, 1)'
+        expect(extractAutomationCustomContent(input)).toBe('ALIAS(MAIN, 1)')
+    })
+
+    it('strips both bare managed includes when present together', () => {
+        const input = [
+            '#include "myRoster.h"',
+            '#include "myTurnouts.h"',
+            'SEQUENCE(200)',
+            'DONE',
+        ].join('\n')
+        expect(extractAutomationCustomContent(input)).toBe('SEQUENCE(200)\nDONE')
+    })
+
+    it('preserves custom code that contains no managed includes', () => {
+        const custom = 'SEQUENCE(100)\n  FWD(50)\nDONE\n\nALIAS(LOCO, 3)'
+        expect(extractAutomationCustomContent(custom)).toBe(custom)
+    })
+
+    it('leaves other #include lines untouched', () => {
+        const input = '#include "myRoster.h"\n#include "mySignals.h"\nSEQUENCE(1)\nDONE'
+        const result = extractAutomationCustomContent(input)
+        expect(result).toContain('#include "mySignals.h"')
+        expect(result).not.toContain('#include "myRoster.h"')
+    })
+
+    it('round-trips: extract from a fully generated preview returns the original custom content', () => {
+        const custom = 'SEQUENCE(100)\n  FWD(50) DELAY(2000) STOP\nDONE'
+        // Build what automationPreview would emit
+        const preview = [
+            MANAGED_INCLUDES_TAG,
+            '// These #includes are managed by EX-Installer.',
+            '// Do not remove them — they are required for the installer to function correctly.',
+            '#include "myRoster.h"',
+            '#include "myTurnouts.h"',
+            MANAGED_INCLUDES_TAG,
+            '',
+            custom,
+        ].join('\n')
+        expect(extractAutomationCustomContent(preview)).toBe(custom)
+    })
+
+    it('round-trips cleanly when there is no custom content', () => {
+        const preview = [
+            MANAGED_INCLUDES_TAG,
+            '#include "myRoster.h"',
+            MANAGED_INCLUDES_TAG,
+        ].join('\n')
+        expect(extractAutomationCustomContent(preview)).toBe('')
+    })
+
+    it('is idempotent: extracting twice gives the same result', () => {
+        const custom = 'ALIAS(PLATFORM1, 10)'
+        const first = extractAutomationCustomContent(
+            `${MANAGED_INCLUDES_TAG}\n#include "myRoster.h"\n${MANAGED_INCLUDES_TAG}\n${custom}`
+        )
+        const second = extractAutomationCustomContent(first)
+        expect(first).toBe(second)
     })
 })

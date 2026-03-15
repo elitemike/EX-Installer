@@ -13,6 +13,7 @@
  *   //   Port:     /dev/ttyUSB0
  *   //   FQBN:     arduino:avr:mega
  *   //   Protocol: serial
+ *   //   Updated:  2024-01-15T14:30:00.000Z
  *   // ==== DCCEX-Installer Device Configuration ====
  */
 
@@ -25,7 +26,7 @@ export function hasDeviceHeader(text: string): boolean {
     return text.includes(DEVICE_HEADER_TAG)
 }
 
-/** Builds the six-line device comment block to embed in config.h */
+/** Builds the device comment block to embed in config.h */
 export function buildDeviceHeader(device: ArduinoCliBoardInfo): string {
     return [
         DEVICE_HEADER_TAG,
@@ -33,6 +34,7 @@ export function buildDeviceHeader(device: ArduinoCliBoardInfo): string {
         `//   Port:     ${device.port}`,
         `//   FQBN:     ${device.fqbn}`,
         `//   Protocol: ${device.protocol}`,
+        `//   Updated:  ${new Date().toISOString()}`,
         DEVICE_HEADER_TAG,
     ].join('\n')
 }

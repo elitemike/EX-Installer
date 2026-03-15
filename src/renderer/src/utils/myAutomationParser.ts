@@ -405,6 +405,7 @@ export function buildGeneratorHeader(filename: string, appVersion: string): stri
         `// DCCEX-Installer v${appVersion}`,
         `// This file (${filename}) is managed by EX-Installer — manual edits are preserved`,
         '// but may be reformatted on the next save. See https://dcc-ex.com for docs.',
+        `// Last saved: ${new Date().toISOString()}`,
         HEADER_BAR,
     ].join('\n')
 }

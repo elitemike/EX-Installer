@@ -10,12 +10,49 @@ import {
 } from '../utils/myAutomationParser'
 
 /**
+ * Open/close tag that delimits the auto-managed #include block at the top of
+ * myAutomation.h.  The same string is used for both the opening and closing
+ * line, matching the pattern used by the device header in config.h.
+ */
+export const MANAGED_INCLUDES_TAG = '// ==== EX-Installer Required Includes ===='
+
+/**
+ * Strips the managed-includes block (and any bare myRoster/myTurnouts includes
+ * that appear outside it) from myAutomation.h content, returning only the
+ * user's custom code.  Called when loading an existing file so that the custom
+ * body survives subsequent auto-regeneration.
+ */
+export function extractAutomationCustomContent(content: string): string {
+    // Remove the managed-includes block (open tag … close tag, inclusive)
+    let text = content
+    const openIdx = text.indexOf(MANAGED_INCLUDES_TAG)
+    if (openIdx !== -1) {
+        const closeIdx = text.indexOf(MANAGED_INCLUDES_TAG, openIdx + MANAGED_INCLUDES_TAG.length)
+        if (closeIdx !== -1) {
+            const afterClose = closeIdx + MANAGED_INCLUDES_TAG.length
+            text = text.slice(0, openIdx) + text.slice(afterClose)
+        }
+    }
+
+    // Also strip any bare managed #include lines left outside the block
+    text = text
+        .split('\n')
+        .filter(line => {
+            const t = line.trim()
+            return t !== '#include "myRoster.h"' && t !== '#include "myTurnouts.h"'
+        })
+        .join('\n')
+
+    return text.replace(/^\n+/, '').replace(/\n+$/, '')
+}
+
+/**
  * ConfigEditorState — singleton that owns the in-memory editing state for all
  * configuration files.  It is the single source of truth for:
  *   • config.h                  (raw text)
  *   • myRoster.h                (structured Roster[] + raw text view)
  *   • myTurnouts.h              (structured Turnout[] + raw text view)
- *   • myAutomation.h            (auto-generated; read-only preview)
+ *   • myAutomation.h            (editable; managed includes pinned at top)
  *
  * It mirrors changes back to InstallerState.configFiles so the existing
  * workspace save flow continues to work without modification.
@@ -141,17 +178,29 @@ export class ConfigEditorState {
 
     // ── Generated myAutomation.h preview ─────────────────────────────────────
     get automationPreview(): string {
-        const lines: string[] = []
-        if (this.roster.length > 0) lines.push('#include "myRoster.h"')
-        if (this.turnouts.length > 0) lines.push('#include "myTurnouts.h"')
+        const includes: string[] = []
+        if (this.roster.length > 0) includes.push('#include "myRoster.h"')
+        if (this.turnouts.length > 0) includes.push('#include "myTurnouts.h"')
         for (const name of this.customFileNames) {
-            lines.push(`#include "${name}"`)
+            includes.push(`#include "${name}"`)
         }
+
+        const sections: string[] = []
+
+        if (includes.length > 0) {
+            sections.push(MANAGED_INCLUDES_TAG)
+            sections.push('// These #includes are managed by EX-Installer.')
+            sections.push('// Do not remove them — they are required for the installer to function correctly.')
+            sections.push(...includes)
+            sections.push(MANAGED_INCLUDES_TAG)
+        }
+
         if (this.preservedAutomationContent.trim()) {
-            if (lines.length > 0) lines.push('')
-            lines.push(this.preservedAutomationContent.trim())
+            if (sections.length > 0) sections.push('')
+            sections.push(this.preservedAutomationContent.trim())
         }
-        return lines.join('\n')
+
+        return sections.join('\n')
     }
 
     // ── Custom file management ────────────────────────────────────────────────
@@ -187,6 +236,10 @@ export class ConfigEditorState {
                 this.roster = parseRosterFromFile(f.content)
             } else if (f.name === 'myTurnouts.h') {
                 this.turnouts = parseTurnoutFromFile(f.content)
+            } else if (f.name === 'myAutomation.h') {
+                // Strip managed includes block; preserve the user's custom code
+                // so it survives every subsequent auto-regeneration.
+                this.preservedAutomationContent = extractAutomationCustomContent(f.content)
             }
         }
         this.hasChanges = false
@@ -213,9 +266,9 @@ export class ConfigEditorState {
                 f.content = this.rosterRaw
             } else if (f.name === 'myTurnouts.h') {
                 f.content = this.turnoutsRaw
-            } else if (f.name === 'myAutomation.h') {
-                f.content = this.automationPreview
             }
+            // myAutomation.h is handled by _ensureAutomationFile below,
+            // which first re-extracts user edits from the current editor content.
         }
         // Ensure myAutomation.h exists in configFiles if roster/turnouts populated
         this._ensureAutomationFile()
@@ -228,8 +281,10 @@ export class ConfigEditorState {
         if (!hasAutomation && needsIt) {
             files.push({ name: 'myAutomation.h', content: this.automationPreview })
         } else if (hasAutomation) {
-            // Always keep content up-to-date
             const af = files.find(f => f.name === 'myAutomation.h')!
+            // Re-extract the user's custom code from the current editor content
+            // so that direct Monaco edits survive the next auto-regeneration.
+            this.preservedAutomationContent = extractAutomationCustomContent(af.content)
             af.content = this.automationPreview
         }
     }
