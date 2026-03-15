@@ -383,6 +383,23 @@ function validateModel(model: monaco.editor.ITextModel): void {
     monaco.editor.setModelMarkers(model, OWNER, markers)
 }
 
+// ── Test helper ───────────────────────────────────────────────────────────────
+
+/**
+ * Run the validators for a given filename against `text` and return simplified
+ * marker data.  Use only in unit tests — not part of the public runtime API.
+ */
+export function _runValidatorsForTest(
+    filename: string,
+    text: string,
+): Array<{ message: string; severity: number }> {
+    const validate = FILE_VALIDATORS[filename]
+    if (!validate) return []
+    const markers: monaco.editor.IMarkerData[] = []
+    validate(text, markers)
+    return markers.map((m) => ({ message: m.message, severity: m.severity }))
+}
+
 /**
  * Re-run validation on a specific model and update its markers, then force
  * the editor's decoration layer to repaint immediately.
