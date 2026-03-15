@@ -117,15 +117,30 @@ function isInt(s: string): boolean {
     return s !== '' && Number.isInteger(Number(s)) && !s.includes('.')
 }
 
+function isIdentifier(s: string): boolean {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(s)
+}
+
+/** Collect every name introduced by `#define NAME ...` in the given text. */
+function getDefineNames(text: string): Set<string> {
+    const names = new Set<string>()
+    const re = /^#define\s+([A-Za-z_][A-Za-z0-9_]*)/gm
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) names.add(m[1])
+    return names
+}
+
 // ── ROSTER validator ──────────────────────────────────────────────────────────
 
 /**
- * ROSTER(dccAddress, "Name", "Fn0/Fn1/...")
+ * ROSTER(dccAddress, "Name", "Fn0/Fn1/..." | DEFINE)
  *   arg 1 — integer DCC address (1–9999)
  *   arg 2 — double-quoted loco name string
- *   arg 3 — double-quoted function list string
+ *   arg 3 — double-quoted function list string OR a #define identifier
  */
 function validateRoster(text: string, out: monaco.editor.IMarkerData[]): void {
+    const defines = getDefineNames(text)
+
     for (const { fullMatch: m, argsRaw, innerStart } of eachMacroCall(text, 'ROSTER')) {
         const args = parseArgSpans(argsRaw, innerStart)
 
@@ -160,9 +175,18 @@ function validateRoster(text: string, out: monaco.editor.IMarkerData[]): void {
         }
 
         if (!isQuotedString(fnList.value)) {
-            out.push(makeMarker(text, fnList.start, fnList.end,
-                `Function list must be a double-quoted string, e.g. "LIGHT/HORN/*BELL".`,
-            ))
+            if (isIdentifier(fnList.value)) {
+                if (!defines.has(fnList.value)) {
+                    out.push(makeMarker(text, fnList.start, fnList.end,
+                        `'${fnList.value}' is not defined in this file. Add '#define ${fnList.value} "Fn0/Fn1/..."' above the ROSTER entry.`,
+                        monaco.MarkerSeverity.Warning,
+                    ))
+                }
+            } else {
+                out.push(makeMarker(text, fnList.start, fnList.end,
+                    `Function list must be a quoted string (e.g. "LIGHT/*HORN") or a #define identifier.`,
+                ))
+            }
         }
     }
 }

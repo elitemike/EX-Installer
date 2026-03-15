@@ -23,7 +23,6 @@ function registerProviders(): void {
         provideCompletionItems(model, position) {
             const filename = model.uri.path.replace(/^\//, '')
             const snippets = getCompletions(filename)
-            if (!snippets.length) return { suggestions: [] }
 
             const word = model.getWordUntilPosition(position)
             const range = {
@@ -33,17 +32,35 @@ function registerProviders(): void {
                 endColumn: word.endColumn,
             }
 
-            return {
-                suggestions: snippets.map(s => ({
-                    label: s.label,
-                    kind: monaco.languages.CompletionItemKind.Function,
-                    detail: s.detail,
-                    documentation: s.documentation,
-                    insertText: s.insertText,
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    range,
-                })),
+            const suggestions: monaco.languages.CompletionItem[] = snippets.map(s => ({
+                label: s.label,
+                kind: monaco.languages.CompletionItemKind.Function,
+                detail: s.detail,
+                documentation: s.documentation,
+                insertText: s.insertText,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                range,
+            }))
+
+            // For myRoster.h: also offer #define identifiers already in the file
+            // so users can reference a named function list defined above a ROSTER call.
+            if (filename === 'myRoster.h') {
+                const text = model.getValue()
+                const defineRe = /^#define\s+([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]*)"/gm
+                let dm: RegExpExecArray | null
+                while ((dm = defineRe.exec(text)) !== null) {
+                    suggestions.push({
+                        label: dm[1],
+                        kind: monaco.languages.CompletionItemKind.Variable,
+                        detail: `#define — "${dm[2].slice(0, 60)}${dm[2].length > 60 ? '…' : ''}"`,
+                        documentation: `Defined function list: "${dm[2]}"`,
+                        insertText: dm[1],
+                        range,
+                    })
+                }
             }
+
+            return { suggestions }
         },
     })
 

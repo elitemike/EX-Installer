@@ -53,14 +53,14 @@ export const FILE_CONFIGS: Record<string, FileConfig> = {
         completions: [
             {
                 label: 'ROSTER',
-                detail: 'ROSTER(dccAddress, "Name", "Fn0/Fn1/...")',
+                detail: 'ROSTER(dccAddress, "Name", "Fn0/Fn1/..." | DEFINE)',
                 documentation: 'Define a locomotive roster entry.',
                 insertText: 'ROSTER(${1:dccAddress}, "${2:Loco Name}", "${3:Fn0/Fn1/Fn2}")',
                 hover: {
                     title: 'ROSTER Macro',
                     description: 'Define a locomotive roster entry visible in throttle apps.',
                     example: 'ROSTER(1234, "My Loco", "Lights/*Bell/*Whistle/Mute")',
-                    note: 'Prefix a function name with `*` to make it momentary.',
+                    note: 'Prefix a function name with `*` to make it momentary. The function list can also be a `#define` identifier — define it above with `#define MY_LOCO_F "Fn0/Fn1/..."`.',
                 },
             },
         ],
