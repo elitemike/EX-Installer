@@ -55,7 +55,7 @@ function makeWorkspace(overrides: {
         showDeviceMenu: false,
         savedConfigs: [],
         activeFileIndex: 0,
-        configEditorState: { clearChanges: vi.fn() },
+        configEditorState: { clearChanges: vi.fn(), syncAll: vi.fn() },
     })
 
     return ws

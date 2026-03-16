@@ -30,6 +30,14 @@ export const IS_MOCK_DEVICE =
 export const IS_MOCK_COMPILE =
     app.commandLine.hasSwitch('mock-compile') || process.argv.includes('--mock-compile')
 
+// Expose CJS require as a global so Playwright's app.evaluate() can call it.
+// evaluate() runs in a V8 eval context where the CJS module-wrapper's `require`
+// is not in scope. This allows load-from-folder tests to mock IPC handlers.
+if (IS_MOCK_DEVICE) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ; (global as Record<string, unknown>).__e2eRequire = require
+}
+
 if (config.disableHardwareAcceleration) app.disableHardwareAcceleration()
 
 if (config.disableDBus && process.platform === 'linux') {

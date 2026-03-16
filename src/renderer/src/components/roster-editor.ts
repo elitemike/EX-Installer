@@ -100,30 +100,25 @@ export class RosterEditorCustomElement {
                     this._renderNodeContent(args.node, args.nodeData as unknown as TreeNodeData)
                 },
                 nodeSelected: (args: NodeSelectEventArgs) => this._onNodeSelected(args),
+                // Select the right-clicked node so _contextMenuNodeId is populated
+                // before the ContextMenu's beforeOpen fires (mirrors the SF docs pattern).
+                nodeClicked: (args) => {
+                    if ((args.event as MouseEvent).which === 3 && this.sfTree) {
+                        const uid = args.node.getAttribute('data-uid') ?? ''
+                        const nodeData = this.sfTree.getTreeData(uid)
+                        if (nodeData?.[0]) {
+                            this._contextMenuNodeId = (nodeData[0] as { id: string }).id
+                        }
+                    }
+                },
             })
             this.sfTree.appendTo(this.treeEl)
 
-            // ⋮ button click (left-click) → open context menu
-            this.treeEl.addEventListener(
-                'click',
-                (e: MouseEvent) => {
-                    const btn = (e.target as Element).closest('.node-menu-btn') as HTMLElement | null
-                    if (!btn) return
-                    e.stopPropagation()
-                    e.preventDefault()
-                    const nodeId = btn.dataset.nodeId ?? ''
-                    if (!nodeId) return
-                    this._contextMenuNodeId = nodeId
-                    const rect = btn.getBoundingClientRect()
-                    this.sfContextMenu?.open(
-                        Math.round(rect.bottom + window.scrollY),
-                        Math.round(rect.left + window.scrollX),
-                    )
-                },
-                { capture: true },
-            )
-
-            // ContextMenu (right-click + ⋮ button)
+            // ContextMenu — second-arg constructor form per SF docs:
+            // https://ej2.syncfusion.com/javascript/documentation/treeview/how-to/process-the-tree-node-operations-using-context-menu
+            // The anchor element must be a <ul>; right-clicks on target: '#roster-treeview'
+            // open the menu automatically. The ⋮ button dispatches a synthetic contextmenu
+            // event so SF handles positioning identically to a real right-click.
             this.sfContextMenu = new ContextMenu({
                 target: '#roster-treeview',
                 items: [
@@ -132,8 +127,10 @@ export class RosterEditorCustomElement {
                     { text: 'Rename Group', id: 'rename-group' },
                 ],
                 beforeOpen: (args: BeforeOpenCloseMenuEventArgs) => {
+                    // If _contextMenuNodeId was not pre-set (real right-click path —
+                    // nodeClicked fires *after* beforeOpen so we can't rely on it),
+                    // derive the node id from the event target instead.
                     if (!this._contextMenuNodeId) {
-                        // Derive from right-click event
                         const e = args.event as MouseEvent
                         if (!e || !this.sfTree) { args.cancel = true; return }
                         const nodeEl = (e.target as Element).closest('li[data-uid]') as HTMLElement | null
@@ -154,8 +151,7 @@ export class RosterEditorCustomElement {
                 },
                 select: (args: MenuEventArgs) => this._onMenuSelect(args),
                 onClose: () => { this._contextMenuNodeId = null },
-            })
-            this.sfContextMenu.appendTo(this.contextMenuEl)
+            }, this.contextMenuEl)
         })
     }
 
@@ -224,7 +220,7 @@ export class RosterEditorCustomElement {
 
     // ── TreeView + ContextMenu ────────────────────────────────────────────────
     treeEl!: HTMLDivElement
-    contextMenuEl!: HTMLDivElement
+    contextMenuEl!: HTMLUListElement
     private sfTree: TreeView | null = null
     private sfContextMenu: ContextMenu | null = null
     /** Id of the node last targeted by right-click or ⋮ button. Cleared on menu close. */
@@ -310,6 +306,14 @@ export class RosterEditorCustomElement {
         // finishes running.
         queueTask(() => {
             if (!this.sfTree) return
+            // SF refresh() may not auto-apply expanded:true from data for new group nodes;
+            // explicitly expand all group nodes so child locos are visible.
+            const groupIds = this._buildTreeData()
+                .filter(n => n.id.startsWith('group:'))
+                .map(n => n.id)
+            if (groupIds.length > 0) {
+                this.sfTree.expandAll(groupIds)
+            }
             const nodeId = this._currentSelectionNodeId()
             if (nodeId) {
                 this._suppressNodeSelected = true
@@ -326,8 +330,10 @@ export class RosterEditorCustomElement {
         const textSpan = node.querySelector('.e-list-text') as HTMLElement | null
         if (!textWrap || !textSpan) return
 
-        // Make the text-content wrapper a flex row so node content + ⋮ button lay out correctly
-        textWrap.style.cssText = 'display:flex;align-items:center;gap:0.375rem;min-width:0;width:100%;'
+        // Make the text-content wrapper a flex row so node content + ⋮ button lay out correctly.
+        // position:relative + z-index:1 lifts it above e-fullrow (position:absolute, z-index:auto)
+        // so the ⋮ button and text spans receive pointer events correctly.
+        textWrap.style.cssText = 'display:flex;align-items:center;gap:0.375rem;min-width:0;width:100%;position:relative;z-index:1;'
         textSpan.style.cssText = 'flex:1;min-width:0;display:flex;align-items:center;gap:0.375rem;'
         textSpan.textContent = ''
 
@@ -365,13 +371,6 @@ export class RosterEditorCustomElement {
             textSpan.appendChild(fnBadge)
         }
 
-        // ⋮ button — appended to textWrap (sibling to textSpan) so it stays at far right
-        const btn = document.createElement('button')
-        btn.type = 'button'
-        btn.className = 'node-menu-btn shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-600 hover:text-gray-300 hover:bg-white/10 transition-colors'
-        btn.dataset.nodeId = data.id
-        btn.textContent = '⋮'
-        textWrap.appendChild(btn)
     }
 
     private _currentSelectionNodeId(): string | null {

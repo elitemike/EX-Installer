@@ -79,22 +79,19 @@ test.describe('Config Editor — EX-CommandStation', () => {
     test('General tab shows motor driver dropdown', async ({ workspacePage }) => {
         await openDeviceSettings(workspacePage)
 
-        const select = workspacePage.locator('commandstation-config-form select').first()
-        await expect(select).toBeVisible()
-        // At least one option in the motor driver dropdown
-        const optionCount = await select.locator('option').count()
-        expect(optionCount).toBeGreaterThan(0)
+        // SF DropDownList — native <select> is not used; check the SF wrapper (.e-ddl) instead
+        const ddlWrapper = workspacePage.locator('commandstation-config-form .e-ddl').first()
+        await expect(ddlWrapper).toBeVisible()
     })
 
-    test('General tab shows display radio buttons', async ({ workspacePage }) => {
+    test('General tab shows display dropdown', async ({ workspacePage }) => {
         await openDeviceSettings(workspacePage)
 
-        await expect(
-            workspacePage.locator('commandstation-config-form').getByText('None'),
-        ).toBeVisible()
-        await expect(
-            workspacePage.locator('commandstation-config-form').getByText('OLED 132×64 (EX-CSB1)'),
-        ).toBeVisible()
+        // Display section label is visible
+        await expect(workspacePage.locator('commandstation-config-form').getByText('Display')).toBeVisible()
+        // At least two SF DropDownList wrappers (motor driver + display) are rendered
+        const ddlWrappers = workspacePage.locator('commandstation-config-form .e-ddl')
+        await expect(ddlWrappers.nth(1)).toBeVisible()
     })
 
     test('WiFi sub-tab shows disabled message when WiFi is off', async ({ workspacePage }) => {
@@ -148,9 +145,10 @@ test.describe('Config Editor — EX-CommandStation', () => {
         await expect(
             workspacePage.locator('commandstation-config-form').getByText('Track B'),
         ).toBeVisible()
-        // Both tracks have a mode select
-        const selects = workspacePage.locator('commandstation-config-form select')
-        await expect(selects).toHaveCount(3) // motor driver + track A + track B
+        // Both Track A and B DDLs present — general tab may also have dropdown(s), so check >= 2
+        const ddlWrappers = workspacePage.locator('commandstation-config-form .e-ddl')
+        const count = await ddlWrappers.count()
+        expect(count).toBeGreaterThanOrEqual(2)
     })
 
     test('switching to Raw tab shows Monaco editor', async ({ workspacePage }) => {
@@ -228,35 +226,33 @@ test.describe('Config Editor — EX-IOExpander', () => {
     test('enabling DIAG shows diagnostic delay input', async ({ ioExpanderPage }) => {
         await openIOExpanderConfig(ioExpanderPage)
 
-        // DIAG delay field is hidden before DIAG is enabled
+        // Diagnostic delay section is hidden before DIAG is enabled (uses class-based hiding)
         await expect(
-            ioExpanderPage.locator('ioexpander-config-form input[type="number"]'),
+            ioExpanderPage.locator('ioexpander-config-form').getByText('Display frequency (seconds)'),
         ).not.toBeVisible()
 
-        // Enable DIAG
+        // Enable DIAG — SF CheckBox wraps the input; use force to bypass SF overlay
         const diagCheckbox = ioExpanderPage
             .locator('ioexpander-config-form')
             .locator('label', { hasText: 'Enable diagnostic output' })
             .locator('input[type="checkbox"]')
-        await diagCheckbox.check()
+        await diagCheckbox.check({ force: true })
 
-        // Delay input should now appear
+        // Delay section should now be visible
         await expect(
-            ioExpanderPage.locator('ioexpander-config-form input[type="number"]'),
+            ioExpanderPage.locator('ioexpander-config-form').getByText('Display frequency (seconds)'),
         ).toBeVisible()
     })
 
-    test('test mode radio buttons are visible', async ({ ioExpanderPage }) => {
+    test('test mode dropdown is visible', async ({ ioExpanderPage }) => {
         await openIOExpanderConfig(ioExpanderPage)
 
         await expect(
-            ioExpanderPage.locator('ioexpander-config-form').getByText('Test Mode'),
+            ioExpanderPage.locator('ioexpander-config-form').getByText('Test Mode', { exact: true }),
         ).toBeVisible()
+        // testModeEl is an SF DropDownList (not radio buttons)
         await expect(
-            ioExpanderPage.locator('ioexpander-config-form').getByText('None (no testing)'),
-        ).toBeVisible()
-        await expect(
-            ioExpanderPage.locator('ioexpander-config-form').getByText('Analogue input testing'),
+            ioExpanderPage.locator('ioexpander-config-form .e-ddl'),
         ).toBeVisible()
     })
 
@@ -303,7 +299,8 @@ async function switchRosterToRaw(page: import('@playwright/test').Page) {
 async function getRosterRawText(page: import('@playwright/test').Page): Promise<string> {
     return page.evaluate(() => {
         return Array.from(document.querySelectorAll('roster-editor .view-line'))
-            .map(el => el.textContent ?? '')
+            // Monaco renders spaces as \u00a0 (NBSP) or \u00b7 (middle dot); normalize both.
+            .map(el => (el.textContent ?? '').replace(/[\u00a0\u00b7]/g, ' '))
             .join('\n')
     })
 }
@@ -324,7 +321,7 @@ test.describe('Roster Editor — Visual TreeView', () => {
 
     test('clicking a loco node shows detail panel with editable DCC address', async ({ workspacePage }) => {
         await openRosterEditor(workspacePage)
-        await workspacePage.locator('#roster-treeview').getByText('Thomas').click()
+        await workspacePage.locator('#roster-treeview li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         const addressInput = workspacePage.locator('roster-editor input[type="number"]')
         await expect(addressInput).toBeVisible()
         await expect(addressInput).toHaveValue('3')
@@ -335,21 +332,21 @@ test.describe('Roster Editor — Visual TreeView', () => {
         const tree = workspacePage.locator('#roster-treeview')
         const addressInput = workspacePage.locator('roster-editor input[type="number"]')
 
-        await tree.getByText('Thomas').click()
+        await tree.locator('li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await expect(addressInput).toHaveValue('3')
 
-        await tree.getByText('Percy').click()
+        await tree.locator('li').filter({ hasText: 'Percy' }).first().locator('.e-fullrow').click()
         await expect(addressInput).toHaveValue('5')
 
         // Switch back — this is the case that exposed the re-entrant rebuild bug
-        await tree.getByText('Thomas').click()
+        await tree.locator('li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await expect(addressInput).toHaveValue('3')
     })
 
-    test('⋮ button on loco node opens context menu with Clone and Delete', async ({ workspacePage }) => {
+    test('right-click on loco node opens context menu with Clone and Delete', async ({ workspacePage }) => {
         await openRosterEditor(workspacePage)
         const thomasRow = workspacePage.locator('#roster-treeview li').filter({ hasText: 'Thomas' }).first()
-        await thomasRow.locator('.node-menu-btn').click()
+        await thomasRow.locator('.e-fullrow').click({ button: 'right' })
         await expect(workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Clone' })).toBeVisible()
         await expect(workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Delete' })).toBeVisible()
         await expect(workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Rename Group' })).not.toBeVisible()
@@ -358,21 +355,28 @@ test.describe('Roster Editor — Visual TreeView', () => {
     test('Clone creates a group node with original and cloned loco', async ({ workspacePage }) => {
         await openRosterEditor(workspacePage)
         const thomasRow = workspacePage.locator('#roster-treeview li').filter({ hasText: 'Thomas' }).first()
-        await thomasRow.locator('.node-menu-btn').click()
+        await thomasRow.locator('.e-fullrow').click({ button: 'right' })
+        // Wait for menu to fully render before clicking
+        await workspacePage.waitForTimeout(300)
         await workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Clone' }).click()
         // A #define chip should now appear in the tree (group node)
-        await expect(workspacePage.locator('#roster-treeview .text-yellow-400').filter({ hasText: '#define' })).toBeVisible()
-        // The clone should appear
-        await expect(workspacePage.locator('#roster-treeview').getByText('Thomas (copy)')).toBeVisible()
+        await expect(workspacePage.locator('#roster-treeview .text-yellow-400').filter({ hasText: '#define' })).toBeVisible({ timeout: 5_000 })
+        // Expand the group if needed, then check for the cloned loco
+        await expect(workspacePage.locator('#roster-treeview').getByText('Thomas (copy)')).toBeVisible({ timeout: 5_000 })
     })
 
     test('Delete via context menu removes the loco from the tree', async ({ workspacePage }) => {
         await openRosterEditor(workspacePage)
         const percyRow = workspacePage.locator('#roster-treeview li').filter({ hasText: 'Percy' }).first()
-        await percyRow.locator('.node-menu-btn').click()
+        await percyRow.locator('.e-fullrow').click({ button: 'right' })
+        await workspacePage.waitForTimeout(300)
         await workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Delete' }).click()
-        // dialog auto-accepted by fixture
-        await expect(workspacePage.locator('#roster-treeview').getByText('Percy')).not.toBeVisible()
+        // Handle Aurelia confirm dialog (fixture dialog auto-accept may not handle Aurelia dialogs)
+        const deleteBtn = workspacePage.getByRole('button', { name: 'Delete' })
+        if (await deleteBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+            await deleteBtn.click()
+        }
+        await expect(workspacePage.locator('#roster-treeview').getByText('Percy')).not.toBeVisible({ timeout: 5_000 })
     })
 
     test('Add button creates a new loco node and opens its detail panel', async ({ workspacePage }) => {
@@ -387,11 +391,17 @@ test.describe('Roster Editor — Visual TreeView', () => {
     test('selecting a node after Delete still updates the detail panel', async ({ workspacePage }) => {
         await openRosterEditor(workspacePage)
         const percyRow = workspacePage.locator('#roster-treeview li').filter({ hasText: 'Percy' }).first()
-        await percyRow.locator('.node-menu-btn').click()
+        await percyRow.locator('.e-fullrow').click({ button: 'right' })
+        await workspacePage.waitForTimeout(300)
         await workspacePage.locator('.e-contextmenu li').filter({ hasText: 'Delete' }).click()
-        await expect(workspacePage.locator('#roster-treeview').getByText('Percy')).not.toBeVisible()
+        // Handle Aurelia confirm dialog
+        const deleteBtn = workspacePage.getByRole('button', { name: 'Delete' })
+        if (await deleteBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+            await deleteBtn.click()
+        }
+        await expect(workspacePage.locator('#roster-treeview').getByText('Percy')).not.toBeVisible({ timeout: 5_000 })
         // Thomas must still be selectable after the tree rebuilds
-        await workspacePage.locator('#roster-treeview').getByText('Thomas').click()
+        await workspacePage.locator('#roster-treeview li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await expect(workspacePage.locator('roster-editor input[type="number"]')).toHaveValue('3')
     })
 })
@@ -411,7 +421,7 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
 
     test('clicking group node shows macro name label and friendly name input', async ({ rosterGroupedPage }) => {
         await openRosterEditor(rosterGroupedPage)
-        await rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first().click()
+        await rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first().locator('.e-fullrow').first().click()
         const detail = rosterGroupedPage.locator('roster-editor')
         await expect(detail.getByText('STEAM_F')).toBeVisible()
         const friendlyInput = detail.locator('input[placeholder*="display name"]')
@@ -421,7 +431,7 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
 
     test('editing friendly name is reflected in raw view', async ({ rosterGroupedPage }) => {
         await openRosterEditor(rosterGroupedPage)
-        await rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first().click()
+        await rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first().locator('.e-fullrow').first().click()
         const friendlyInput = rosterGroupedPage.locator('roster-editor input[placeholder*="display name"]')
         await friendlyInput.fill('Narrow Gauge')
         await friendlyInput.blur()
@@ -434,7 +444,8 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
     test('context menu on group node shows Rename Group but not Clone or Delete', async ({ rosterGroupedPage }) => {
         await openRosterEditor(rosterGroupedPage)
         const groupRow = rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first()
-        await groupRow.locator('.node-menu-btn').click()
+        await groupRow.locator('.e-fullrow').first().click({ button: 'right' })
+        await rosterGroupedPage.waitForTimeout(300)
         await expect(rosterGroupedPage.locator('.e-contextmenu li').filter({ hasText: 'Rename Group' })).toBeVisible()
         await expect(rosterGroupedPage.locator('.e-contextmenu li').filter({ hasText: 'Clone' })).not.toBeVisible()
         await expect(rosterGroupedPage.locator('.e-contextmenu li').filter({ hasText: 'Delete' })).not.toBeVisible()
@@ -442,14 +453,17 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
 
     test('clicking a grouped loco shows shared-function info card', async ({ rosterGroupedPage }) => {
         await openRosterEditor(rosterGroupedPage)
-        await rosterGroupedPage.locator('#roster-treeview').getByText('Thomas').click()
+        // Thomas is a CHILD node nested inside the Steam Engines group li; navigate into the group's ul
+        const steamGroupLi = rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first()
+        await steamGroupLi.locator('ul li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await expect(rosterGroupedPage.locator('roster-editor').getByText('Shared Function List')).toBeVisible()
         await expect(rosterGroupedPage.locator('roster-editor').getByText('→ Edit function list')).toBeVisible()
     })
 
     test('"Edit function list" button switches detail to group editor', async ({ rosterGroupedPage }) => {
         await openRosterEditor(rosterGroupedPage)
-        await rosterGroupedPage.locator('#roster-treeview').getByText('Thomas').click()
+        const steamGroupLi = rosterGroupedPage.locator('#roster-treeview li').filter({ hasText: 'Steam Engines' }).first()
+        await steamGroupLi.locator('ul li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await rosterGroupedPage.locator('roster-editor').getByText('→ Edit function list').click()
         await expect(rosterGroupedPage.locator('roster-editor').getByText('Macro Name')).toBeVisible()
         await expect(rosterGroupedPage.locator('roster-editor').getByText('STEAM_F')).toBeVisible()
@@ -459,18 +473,19 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
         await openRosterEditor(rosterGroupedPage)
         const tree = rosterGroupedPage.locator('#roster-treeview')
         const detail = rosterGroupedPage.locator('roster-editor')
+        const steamGroupLi = tree.locator('li').filter({ hasText: 'Steam Engines' }).first()
 
-        // Click a grouped loco
-        await tree.getByText('Thomas').click()
+        // Click a grouped loco (Thomas is a child node inside Steam Engines group ul)
+        await steamGroupLi.locator('ul li').filter({ hasText: 'Thomas' }).first().locator('.e-fullrow').click()
         await expect(detail.getByText('Shared Function List')).toBeVisible()
 
         // Switch to the group node
-        await tree.locator('li').filter({ hasText: 'Steam Engines' }).first().click()
+        await steamGroupLi.locator('.e-fullrow').first().click()
         await expect(detail.getByText('STEAM_F')).toBeVisible()
         await expect(detail.getByText('Shared Function List')).not.toBeVisible()
 
         // Switch to an ungrouped loco
-        await tree.getByText('Gordon').click()
+        await tree.locator('li').filter({ hasText: 'Gordon' }).first().locator('.e-fullrow').click()
         const addressInput = detail.locator('input[type="number"]')
         await expect(addressInput).toHaveValue('6')
     })

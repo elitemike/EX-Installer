@@ -177,6 +177,9 @@ export class Workspace {
     }
 
     async saveFiles(): Promise<void> {
+        // Ensure latest parsed state (roster headers, turnout headers) is written
+        // back into configFiles before we write to disk.
+        this.configEditorState.syncAll()
         for (const f of this.state.configFiles) {
             if (this.state.scratchPath) {
                 await this.files.writeFile(`${this.state.scratchPath}/${f.name}`, f.content)

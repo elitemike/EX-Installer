@@ -21,6 +21,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
 
+// Strip ELECTRON_RUN_AS_NODE from the env passed to each Electron launch.
+// When this var is set (e.g. by the Claude Code shell), Electron runs as Node.js
+// and rejects Playwright's --remote-debugging-port=0 flag with "bad option".
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const { ELECTRON_RUN_AS_NODE: _ern, ...ELECTRON_ENV } = process.env
+
 // ── Mock file content ─────────────────────────────────────────────────────────
 
 export const MOCK_ROSTER_H = [
@@ -139,7 +145,7 @@ async function launchApp(mockCompile: boolean): Promise<{ app: ElectronApplicati
         '--js-flags=--no-expose-wasm',
     ]
 
-    const app = await electron.launch({ args, chromiumSandbox: false })
+    const app = await electron.launch({ args, chromiumSandbox: false, env: ELECTRON_ENV })
     return { app, testDataDir }
 }
 
@@ -198,7 +204,7 @@ async function launchIOExpanderApp(): Promise<{ app: ElectronApplication; testDa
         '--js-flags=--no-expose-wasm',
     ]
 
-    const app = await electron.launch({ args, chromiumSandbox: false })
+    const app = await electron.launch({ args, chromiumSandbox: false, env: ELECTRON_ENV })
     return { app, testDataDir }
 }
 
@@ -249,7 +255,7 @@ async function launchRosterGroupedApp(): Promise<{ app: ElectronApplication; tes
         '--js-flags=--no-expose-wasm',
     ]
 
-    const app = await electron.launch({ args, chromiumSandbox: false })
+    const app = await electron.launch({ args, chromiumSandbox: false, env: ELECTRON_ENV })
     return { app, testDataDir }
 }
 
@@ -264,8 +270,9 @@ async function navigateToIOExpanderWorkspace(app: ElectronApplication): Promise<
     }).catch(() => undefined)
     await expect(page.getByText('E2E Test Layout')).toBeVisible({ timeout: 15_000 })
     await page.getByText('E2E Test Layout').click()
-    // IOExpander has no Roster; wait for the config file tab instead
-    await expect(page.getByText('myConfig.h')).toBeVisible({ timeout: 10_000 })
+    // IOExpander has no Roster; wait for the config file tab instead.
+    // Use .first() because 'myConfig.h' also appears in the file content area.
+    await expect(page.getByText('myConfig.h').first()).toBeVisible({ timeout: 10_000 })
     return page
 }
 

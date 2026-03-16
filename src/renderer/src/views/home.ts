@@ -131,10 +131,6 @@ export class Home {
         }
 
         // ── Sketch path resolution ────────────────────────────────────────────
-        // If the user's folder has a .ino, it is already a complete sketch and we
-        // can compile it directly.  Otherwise, find the installed product repo and
-        // set up an internal scratch directory (same layout as the DeviceWizard),
-        // copying source files from the repo and overlaying the user's config files.
         const { scratchPath, repoPath, productKey, sourceFolder } =
             await this.resolveSketchPath(folder, configFiles.map(f => f.name), entries)
 

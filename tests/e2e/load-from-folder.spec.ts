@@ -13,6 +13,10 @@ import type { Page, ElectronApplication } from '@playwright/test'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
+
+// Strip ELECTRON_RUN_AS_NODE so the binary runs as Electron, not Node.js.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const { ELECTRON_RUN_AS_NODE: _ern, ...ELECTRON_ENV } = process.env
 import { buildGeneratorHeader } from '../../src/renderer/src/utils/myAutomationParser'
 import { buildDeviceHeader } from '../../src/renderer/src/utils/configHeaderParser'
 import type { ArduinoCliBoardInfo } from '../../src/types/ipc'
@@ -80,7 +84,7 @@ async function launchBareApp(): Promise<{ app: ElectronApplication; testDataDir:
         `--test-data-dir=${testDataDir}`,
         '--disable-gpu', '--no-sandbox', '--js-flags=--no-expose-wasm',
     ]
-    const app = await electron.launch({ args, chromiumSandbox: false })
+    const app = await electron.launch({ args, chromiumSandbox: false, env: ELECTRON_ENV })
     return { app, testDataDir }
 }
 
@@ -89,9 +93,8 @@ async function launchBareApp(): Promise<{ app: ElectronApplication; testDataDir:
  * bypassing the native OS folder-picker dialog.
  */
 async function mockSelectDirectory(app: ElectronApplication, folder: string): Promise<void> {
-    await app.evaluate((path: string) => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { ipcMain } = require('electron') as typeof import('electron')
+    await app.evaluate((_electronApp, path: string) => {
+        const { ipcMain } = (globalThis as Record<string, NodeRequire>).__e2eRequire('electron') as typeof import('electron')
         ipcMain.removeHandler('files:select-directory')
         ipcMain.handle('files:select-directory', () => path)
     }, folder)
@@ -102,9 +105,8 @@ async function mockSelectDirectory(app: ElectronApplication, folder: string): Pr
  * boards.  The device-picker dialog calls this on open.
  */
 async function mockListBoards(app: ElectronApplication, boards: ArduinoCliBoardInfo[]): Promise<void> {
-    await app.evaluate((boardList: ArduinoCliBoardInfo[]) => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { ipcMain } = require('electron') as typeof import('electron')
+    await app.evaluate((_electronApp, boardList: ArduinoCliBoardInfo[]) => {
+        const { ipcMain } = (globalThis as Record<string, NodeRequire>).__e2eRequire('electron') as typeof import('electron')
         ipcMain.removeHandler('arduino-cli:list-boards')
         ipcMain.handle('arduino-cli:list-boards', () => boardList)
     }, boards)
@@ -154,7 +156,7 @@ test.describe('Load from Folder — device header present in config.h', () => {
         await homePage.getByText('Load from Folder').first().click()
 
         // Should navigate to workspace — device picker dialog should NOT appear
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
         await expect(homePage.getByText('Select Your Board')).not.toBeVisible()
     })
 
@@ -220,7 +222,7 @@ test.describe('Load from Folder — device header present in config.h', () => {
         await mockSelectDirectory(electronApp, sourceFolder)
         await homePage.getByText('Load from Folder').first().click()
 
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
     })
 
     test('unknown .h files are loaded alongside known files', async ({ electronApp, homePage, sourceFolder }) => {
@@ -230,7 +232,7 @@ test.describe('Load from Folder — device header present in config.h', () => {
         await mockSelectDirectory(electronApp, sourceFolder)
         await homePage.getByText('Load from Folder').first().click()
 
-        await expect(homePage.getByText('myCustom.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('myCustom.h').first()).toBeVisible({ timeout: 10_000 })
     })
 
     test('silently updates port when board reconnects on a different port', async ({ electronApp, homePage, sourceFolder }) => {
@@ -245,7 +247,7 @@ test.describe('Load from Folder — device header present in config.h', () => {
         await homePage.getByText('Load from Folder').first().click()
 
         // Device picker should NOT show — board is recognised by FQBN
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
         await expect(homePage.getByText('Select Your Board')).not.toBeVisible()
 
         // Save so the reconciled port is written back to disk
@@ -275,13 +277,12 @@ test.describe('Load from Folder — validation', () => {
 
         // Should remain on home screen
         await expect(homePage.getByText('Load from Folder').first()).toBeVisible()
-        await expect(homePage.getByText('config.h')).not.toBeVisible()
+        await expect(homePage.getByText('config.h').first()).not.toBeVisible()
     })
 
     test('cancelling the folder picker leaves the home screen unchanged', async ({ electronApp, homePage }) => {
-        await electronApp.evaluate(() => {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { ipcMain } = require('electron') as typeof import('electron')
+        await electronApp.evaluate((_electronApp) => {
+            const { ipcMain } = (globalThis as Record<string, NodeRequire>).__e2eRequire('electron') as typeof import('electron')
             ipcMain.removeHandler('files:select-directory')
             ipcMain.handle('files:select-directory', () => null)
         })
@@ -289,7 +290,7 @@ test.describe('Load from Folder — validation', () => {
         await homePage.getByText('Load from Folder').first().click()
 
         await expect(homePage.getByText('Load from Folder').first()).toBeVisible({ timeout: 3_000 })
-        await expect(homePage.getByText('config.h')).not.toBeVisible()
+        await expect(homePage.getByText('config.h').first()).not.toBeVisible()
     })
 
 })
@@ -329,7 +330,7 @@ test.describe('Load from Folder — device picker dialog', () => {
 
         await homePage.getByRole('button', { name: 'Use This Board' }).click()
 
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
     })
 
     test('"Continue without device" still navigates to workspace', async ({ electronApp, homePage, sourceFolder }) => {
@@ -342,7 +343,7 @@ test.describe('Load from Folder — device picker dialog', () => {
 
         await homePage.getByRole('button', { name: 'Continue without device' }).click()
 
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
     })
 
     test('Cancel in device picker aborts folder load and keeps home screen', async ({ electronApp, homePage, sourceFolder }) => {
@@ -357,7 +358,7 @@ test.describe('Load from Folder — device picker dialog', () => {
 
         // Should remain on home screen — no workspace navigation
         await expect(homePage.getByText('Load from Folder').first()).toBeVisible({ timeout: 5_000 })
-        await expect(homePage.getByText('config.h')).not.toBeVisible()
+        await expect(homePage.getByText('config.h').first()).not.toBeVisible()
     })
 
     test('confirming a board injects device header into config.h on Save', async ({ electronApp, homePage, sourceFolder }) => {
@@ -368,7 +369,7 @@ test.describe('Load from Folder — device picker dialog', () => {
         await homePage.getByText('Load from Folder').first().click()
         await expect(homePage.getByText('Select Your Board')).toBeVisible({ timeout: 8_000 })
         await homePage.getByRole('button', { name: 'Use This Board' }).click()
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
 
         await homePage.getByRole('button', { name: 'Save' }).click()
         await homePage.waitForTimeout(500)
@@ -388,14 +389,14 @@ test.describe('Load from Folder — device picker dialog', () => {
         await homePage.getByText('Load from Folder').first().click()
         await expect(homePage.getByText('Select Your Board')).toBeVisible({ timeout: 8_000 })
         await homePage.getByRole('button', { name: 'Use This Board' }).click()
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
 
         // Save so device header is written to disk
         await homePage.getByRole('button', { name: 'Save' }).click()
         await homePage.waitForTimeout(500)
 
         // Navigate back to home
-        await homePage.getByRole('button', { name: 'Home' }).click()
+        await homePage.getByRole('button', { name: 'EX-Installer' }).click()
         await expect(homePage.getByText('Load from Folder').first()).toBeVisible({ timeout: 5_000 })
 
         // Second load from same folder — picker should not appear
@@ -403,7 +404,7 @@ test.describe('Load from Folder — device picker dialog', () => {
         await homePage.getByText('Load from Folder').first().click()
 
         // Picker should be skipped; workspace loads directly
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
         await expect(homePage.getByText('Select Your Board')).not.toBeVisible()
     })
 
@@ -432,7 +433,7 @@ test.describe('Load from Folder — migration detection', () => {
         await mockSelectDirectory(electronApp, sourceFolder)
         await homePage.getByText('Load from Folder').first().click()
 
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
         await expect(homePage.locator('.e-toast-warning')).not.toBeVisible()
     })
 
@@ -448,7 +449,7 @@ test.describe('Load from Folder — save writes back to source folder', () => {
 
         await mockSelectDirectory(electronApp, sourceFolder)
         await homePage.getByText('Load from Folder').first().click()
-        await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+        await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
 
         await homePage.locator('.e-toast-warning').click().catch(() => undefined)
         await homePage.getByRole('button', { name: 'Save' }).click()
@@ -481,9 +482,8 @@ test.describe('Load from Folder — internal sketch path setup', () => {
             writeFileSync(join(sourceFolder, 'config.h'), CONFIG_H_WITH_DEVICE, 'utf-8')
 
             // Override getInstallDir to point to our fake repos directory.
-            await electronApp.evaluate((dir: string) => {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const { ipcMain } = require('electron') as typeof import('electron')
+            await electronApp.evaluate((_electronApp, dir: string) => {
+                const { ipcMain } = (globalThis as Record<string, NodeRequire>).__e2eRequire('electron') as typeof import('electron')
                 ipcMain.removeHandler('files:get-install-dir')
                 ipcMain.handle('files:get-install-dir', () => dir)
             }, reposDir)
@@ -492,7 +492,7 @@ test.describe('Load from Folder — internal sketch path setup', () => {
             await homePage.getByText('Load from Folder').first().click()
 
             // Workspace should load successfully
-            await expect(homePage.getByText('config.h')).toBeVisible({ timeout: 10_000 })
+            await expect(homePage.getByText('config.h').first()).toBeVisible({ timeout: 10_000 })
 
             // An internal _build/<id>/CommandStation-EX directory should have been created
             const buildDir = join(reposDir, '_build')

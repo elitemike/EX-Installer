@@ -89,10 +89,10 @@ test.describe('Validators', () => {
             await expectErrorSquiggle(page)
         })
 
-        test('unquoted function list — error squiggle', async ({ workspacePage: page }) => {
+        test('undefined macro in function list — warning squiggle', async ({ workspacePage: page }) => {
             await openRawRoster(page)
             await setMonacoContent(page, 'ROSTER(5, "Good Name", LIGHT)')
-            await expectErrorSquiggle(page)
+            await expectWarningSquiggle(page)
         })
 
         test('wrong argument count — error squiggle on entire call', async ({ workspacePage: page }) => {

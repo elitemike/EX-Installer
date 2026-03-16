@@ -36,8 +36,8 @@ async function switchToRaw(page: import('@playwright/test').Page) {
  */
 async function switchToVisual(page: import('@playwright/test').Page) {
     await page.getByRole('button', { name: 'Visual' }).click()
-    // Wait for nav list to appear
-    await expect(page.locator('nav[aria-label="Roster entries"]')).toBeVisible()
+    // Wait for the TreeView to appear (replaced the old nav list after the TreeView migration)
+    await expect(page.locator('#roster-treeview')).toBeVisible()
 }
 
 /**
@@ -128,8 +128,8 @@ test.describe('Roster Editor', () => {
         await addrInput.fill('7')
         await addrInput.blur()
 
-        // Entry should now appear in the list
-        await expect(page.locator('nav[aria-label="Roster entries"]').getByText('Gordon')).toBeVisible()
+        // Entry should now appear in the tree
+        await expect(page.locator('#roster-treeview').getByText('Gordon')).toBeVisible()
 
         // Switch to raw — Gordon must appear as a ROSTER() macro
         await switchToRaw(page)
@@ -140,11 +140,10 @@ test.describe('Roster Editor', () => {
     test('removing entry via visual disappears from raw tab', async ({ workspacePage: page }) => {
         await openRosterEditor(page)
 
-        // Remove Thomas (first entry) via the × button
-        const rosterNav = page.locator('nav[aria-label="Roster entries"]')
-        const thomasRow = rosterNav.locator('a', { hasText: 'Thomas' })
-        await thomasRow.hover()
-        await thomasRow.locator('button[title="Remove"]').click()
+        // Remove Thomas (first entry) via context menu → Delete
+        const thomasRow = page.locator('#roster-treeview li').filter({ hasText: 'Thomas' }).first()
+        await thomasRow.locator('.e-fullrow').click({ button: 'right' })
+        await page.locator('.e-contextmenu li').filter({ hasText: 'Delete' }).click()
 
         // ConfirmDialog appears as an Aurelia dialog overlay — click "Delete".
         // The dialog handler on the page fixture auto-accepts window.confirm() fallback.
@@ -153,9 +152,9 @@ test.describe('Roster Editor', () => {
             await deleteBtn.click()
         }
 
-        // Thomas should be gone from the roster nav list
-        await expect(rosterNav.getByText('Thomas')).not.toBeVisible({ timeout: 5_000 })
-        await expect(rosterNav.getByText('Percy')).toBeVisible()
+        // Thomas should be gone from the tree
+        await expect(page.locator('#roster-treeview').getByText('Thomas')).not.toBeVisible({ timeout: 5_000 })
+        await expect(page.locator('#roster-treeview').getByText('Percy')).toBeVisible()
 
         // Switch to raw — Thomas must be gone
         await switchToRaw(page)
@@ -178,7 +177,7 @@ test.describe('Roster Editor', () => {
         await switchToVisual(page)
 
         // Gordon should now appear in the visual entry list
-        await expect(page.getByText('Gordon')).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator('#roster-treeview').getByText('Gordon')).toBeVisible({ timeout: 5_000 })
         await expect(page.getByText('3 entries')).toBeVisible()
     })
 
@@ -197,9 +196,9 @@ test.describe('Roster Editor', () => {
         await switchToVisual(page)
 
         // Bertie should be present, Percy should be gone
-        await expect(page.getByText('Bertie')).toBeVisible({ timeout: 5_000 })
-        await expect(page.getByText('Percy')).not.toBeVisible()
-        await expect(page.getByText('15')).toBeVisible()
+        await expect(page.locator('#roster-treeview').getByText('Bertie')).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator('#roster-treeview').getByText('Percy')).not.toBeVisible()
+        await expect(page.locator('#roster-treeview').getByText('15')).toBeVisible()
     })
 
     test('entry removed in raw disappears from visual after switching tab', async ({ workspacePage: page }) => {
@@ -214,8 +213,8 @@ test.describe('Roster Editor', () => {
         await switchToVisual(page)
 
         // Only Thomas should remain
-        await expect(page.getByText('Thomas')).toBeVisible({ timeout: 5_000 })
-        await expect(page.getByText('Percy')).not.toBeVisible()
+        await expect(page.locator('#roster-treeview').getByText('Thomas')).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator('#roster-treeview').getByText('Percy')).not.toBeVisible()
         await expect(page.getByText('1 entries')).toBeVisible()
     })
 
@@ -231,10 +230,10 @@ test.describe('Roster Editor', () => {
         await switchToVisual(page)
 
         // Gordon should be in visual
-        await expect(page.getByText('Gordon')).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator('#roster-treeview').getByText('Gordon')).toBeVisible({ timeout: 5_000 })
 
         // Edit Gordon's name to "Gordon the Big Engine" via visual
-        await page.locator('nav[aria-label="Roster entries"] a', { hasText: 'Gordon' }).click()
+        await page.locator('#roster-treeview li').filter({ hasText: 'Gordon' }).first().locator('.e-fullrow').click()
         const nameInput = page.locator('label', { hasText: 'Name' }).locator('..').locator('input[type="text"]')
         await nameInput.clear()
         await nameInput.fill('Gordon the Big Engine')

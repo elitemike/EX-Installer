@@ -328,6 +328,16 @@ export class ConfigEditorState {
         }
     }
 
+    /**
+     * Ensures all in-memory parsed state (roster, turnouts, config.h) is
+     * written back into InstallerState.configFiles.  Call this before saving
+     * so that files added by loadFromInstallerState() (e.g. after loading an
+     * external folder) get the generator header and latest serialized content.
+     */
+    syncAll(): void {
+        this._syncToInstallerState()
+    }
+
     /** Call after a successful save to disk to clear the dirty flag. */
     clearChanges(): void {
         this.hasChanges = false
