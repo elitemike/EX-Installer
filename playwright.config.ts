@@ -22,6 +22,7 @@ export default defineConfig({
         screenshot: 'only-on-failure',
         trace: 'retain-on-failure',
     },
-    // Run all E2E tests serially — each test launches its own Electron process.
-    workers: 1,
+    // Run all E2E tests parallel — each test launches its own Electron process.
+    workers: 6,
 })
+

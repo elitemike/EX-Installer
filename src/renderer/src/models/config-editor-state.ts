@@ -142,6 +142,42 @@ export class ConfigEditorState {
         this._syncToInstallerState()
     }
 
+    /** Sets appended functions on a specific roster entry (must have a macro). */
+    setAppendedFunctions(index: number, functions: RosterFunction[]): void {
+        const entry = this.roster[index]
+        if (!entry || !entry.functionMacro) return
+        const fns = functions.map(f => ({ ...f }))
+        this.roster = this.roster.map((r, i) =>
+            i === index ? { ...r, appendedFunctions: fns.length > 0 ? fns : undefined } : r,
+        )
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
+    /** Adds an appended function to a roster entry. */
+    addAppendedFunction(index: number, fn: RosterFunction): void {
+        const entry = this.roster[index]
+        if (!entry || !entry.functionMacro) return
+        const existing = entry.appendedFunctions ?? []
+        this.roster = this.roster.map((r, i) =>
+            i === index ? { ...r, appendedFunctions: [...existing, { ...fn }] } : r,
+        )
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
+    /** Removes an appended function from a roster entry. */
+    removeAppendedFunction(index: number, fnIndex: number): void {
+        const entry = this.roster[index]
+        if (!entry || !entry.appendedFunctions) return
+        const updated = entry.appendedFunctions.filter((_, i) => i !== fnIndex)
+        this.roster = this.roster.map((r, i) =>
+            i === index ? { ...r, appendedFunctions: updated.length > 0 ? updated : undefined } : r,
+        )
+        this.hasChanges = true
+        this._syncToInstallerState()
+    }
+
     // ── myTurnouts.h ─────────────────────────────────────────────────────────
     @observable turnouts: Turnout[] = []
 

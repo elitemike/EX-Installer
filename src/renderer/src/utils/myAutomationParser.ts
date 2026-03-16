@@ -17,6 +17,8 @@ export interface Roster {
     functionMacro?: string;
     /** Friendly name from `// friendlyName: "..."` at the end of the #define line. */
     defineFriendlyName?: string;
+    /** Custom functions appended to a group via preprocessor string concatenation (e.g., COMMON "/EXTRA"). */
+    appendedFunctions?: RosterFunction[];
 }
 
 /** A #define group derived from the roster — one per unique `functionMacro` value. */
@@ -121,8 +123,12 @@ export function sanitizeMacroName(name: string): string {
  * list of original invalid line strings so callers can surface a warning.
  */
 export function commentInvalidRosterLines(text: string): { processedText: string; invalidLines: string[] } {
-    // Full-match pattern for a valid ROSTER call (same as the parser uses).
-    const validRegex = /^\s*ROSTER\s*\(\s*\d+\s*,\s*"[^"]*"\s*,\s*(?:[A-Za-z0-9_]+|"[^"]*")\s*\)(?:\s*\/\/.*)?$/;
+    // Full-match pattern for a valid ROSTER call.
+    // Accepts three formats for the function list:
+    // 1. A bare identifier: MOTOR_FN
+    // 2. A quoted string: "LIGHT/HORN"
+    // 3. A macro with appended functions: MACRO_NAME "/suffix"
+    const validRegex = /^\s*ROSTER\s*\(\s*\d+\s*,\s*"[^"]*"\s*,\s*(?:[A-Za-z0-9_]+(?:\s+"[^"]*")?|"[^"]*")\s*\)(?:\s*\/\/.*)?$/;
     // Looser pattern: any line that contains a ROSTER( token (catches malformed calls).
     const rosterAttemptRegex = /\bROSTER\s*\(/;
 
@@ -158,32 +164,59 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
         if (defMatch[3] !== undefined) friendlyNameMap[defMatch[1]] = defMatch[3];
     }
 
-    const rosterRegex = /ROSTER\s*\(\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*([A-Za-z0-9_]+|"[^"]*")\s*\)(?:\s*\/\/\s*(.*))?/g;
+    const rosterRegex = /ROSTER\s*\(\s*(\d+)\s*,\s*"([^"]*)"\s*,\s*([A-Za-z0-9_]+(?:\s+"[^"]*")?|"[^"]*")\s*\)(?:\s*\/\/\s*(.*))?/g;
     const entries: Roster[] = [];
     let match: RegExpExecArray | null;
 
     while ((match = rosterRegex.exec(uncommentedContent)) !== null) {
         const dccAddress = parseInt(match[1], 10);
         const name = match[2];
-        let functionsString = match[3];
+        let functionsArg = match[3];
         const comment = match[4] ? match[4].trim() : '';
         let functionMacro: string | undefined;
+        let appendedFunctions: RosterFunction[] | undefined;
 
-        if (!functionsString.startsWith('"')) {
-            functionMacro = functionsString;
-            functionsString = macroMap[functionMacro] || '';
+        // Check if this is a macro reference (possibly with appended functions)
+        if (!functionsArg.startsWith('"')) {
+            // Either "MACRO" or "MACRO \"/suffix\""
+            const macroMatch = functionsArg.match(/^([A-Za-z0-9_]+)(?:\s+"([^"]*)")?$/);
+            if (macroMatch) {
+                functionMacro = macroMatch[1];
+                const baseFunctions = macroMap[functionMacro] || '';
+                let allFunctionsString = baseFunctions;
+
+                // If there's an appended suffix, concatenate it (C preprocessor behavior)
+                if (macroMatch[2]) {
+                    const suffix = macroMatch[2];
+                    // The suffix already includes the leading slash from the quoted string (e.g., "/BRAKE")
+                    // so we just concatenate without adding another slash
+                    allFunctionsString = baseFunctions + suffix;
+                    // Store the appended part separately (filter out empty names from leading/trailing slashes)
+                    appendedFunctions = suffix.split('/').filter(s => s).map(parseFunction);
+                }
+
+                entries.push({
+                    dccAddress,
+                    name,
+                    functions: allFunctionsString.split('/').filter(s => s).map(parseFunction),
+                    comment,
+                    functionMacro,
+                    defineFriendlyName: functionMacro ? friendlyNameMap[functionMacro] : undefined,
+                    appendedFunctions,
+                });
+            }
         } else {
-            functionsString = functionsString.slice(1, -1);
+            // Quoted string (inline functions)
+            const functionsString = functionsArg.slice(1, -1);
+            entries.push({
+                dccAddress,
+                name,
+                functions: functionsString.split('/').filter(s => s).map(parseFunction),
+                comment,
+                functionMacro: undefined,
+                defineFriendlyName: undefined,
+            });
         }
-
-        entries.push({
-            dccAddress,
-            name,
-            functions: functionsString.split('/').map(parseFunction),
-            comment,
-            functionMacro,
-            defineFriendlyName: functionMacro ? friendlyNameMap[functionMacro] : undefined,
-        });
     }
 
     return entries;
@@ -197,8 +230,13 @@ export function serializeRosterToFile(roster: Roster[]): string {
     const userMacros = new Map<string, { funcString: string; friendlyName?: string }>()
     for (const entry of roster) {
         if (entry.functionMacro && !userMacros.has(entry.functionMacro)) {
+            // If this entry has appended functions, exclude them from the macro definition
+            let baseFunctions = entry.functions
+            if (entry.appendedFunctions && entry.appendedFunctions.length > 0) {
+                baseFunctions = entry.functions.slice(0, entry.functions.length - entry.appendedFunctions.length)
+            }
             userMacros.set(entry.functionMacro, {
-                funcString: entry.functions.map(serializeFunction).join('/'),
+                funcString: baseFunctions.map(serializeFunction).join('/'),
                 friendlyName: entry.defineFriendlyName,
             })
         }
@@ -239,8 +277,21 @@ export function serializeRosterToFile(roster: Roster[]): string {
     // ── 4. Emit ROSTER lines ─────────────────────────────────────────────────
     for (const entry of roster) {
         const fs = entry.functions.map(serializeFunction).join('/')
-        const macroName = entry.functionMacro ?? autoMacros.get(fs)
-        const funcField = macroName ? macroName : `"${fs}"`
+
+        let funcField: string;
+        if (entry.functionMacro && entry.appendedFunctions && entry.appendedFunctions.length > 0) {
+            // Has both macro reference and appended functions
+            const appendedString = entry.appendedFunctions.map(serializeFunction).join('/')
+            funcField = `${entry.functionMacro} "/${appendedString}"`
+        } else if (entry.functionMacro) {
+            // Macro reference only
+            funcField = entry.functionMacro
+        } else {
+            // Inline functions
+            const macroName = autoMacros.get(fs)
+            funcField = macroName ? macroName : `"${fs}"`
+        }
+
         let line = `ROSTER(${entry.dccAddress}, "${entry.name}", ${funcField})`
         if (entry.comment) line += ` // ${entry.comment}`
         lines.push(line)

@@ -142,6 +142,7 @@ async function launchApp(mockCompile: boolean): Promise<{ app: ElectronApplicati
         `--test-data-dir=${testDataDir}`,
         '--disable-gpu',
         '--no-sandbox',
+        '--offscreen',
         '--js-flags=--no-expose-wasm',
     ]
 
@@ -201,6 +202,7 @@ async function launchIOExpanderApp(): Promise<{ app: ElectronApplication; testDa
         `--test-data-dir=${testDataDir}`,
         '--disable-gpu',
         '--no-sandbox',
+        '--offscreen',
         '--js-flags=--no-expose-wasm',
     ]
 
@@ -252,6 +254,7 @@ async function launchRosterGroupedApp(): Promise<{ app: ElectronApplication; tes
         `--test-data-dir=${testDataDir}`,
         '--disable-gpu',
         '--no-sandbox',
+        '--offscreen',
         '--js-flags=--no-expose-wasm',
     ]
 

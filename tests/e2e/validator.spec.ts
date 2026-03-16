@@ -122,6 +122,17 @@ test.describe('Validators', () => {
             // At least two error decorations (one per bad argument)
             await expect(page.locator('.squiggly-error')).toHaveCount(2, { timeout: 4_000 })
         })
+
+        test('macro with appended functions — no squiggles', async ({ workspacePage: page }) => {
+            await openRawRoster(page)
+            // Valid: #define MOTOR_FN with ROSTER using MOTOR_FN "/EXTRA" format (appended functions)
+            await setMonacoContent(page, [
+                '#define MOTOR_FN "LIGHT/HORN"',
+                'ROSTER(101, "Engine", MOTOR_FN "/BRAKE")',
+                'ROSTER(102, "Tender", MOTOR_FN "/WHISTLE")',
+            ].join('\n'))
+            await expectNoErrorSquiggle(page)
+        })
     })
 
     // ── SERVO_TURNOUT validator tests ─────────────────────────────────────────

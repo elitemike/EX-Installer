@@ -375,3 +375,138 @@ describe('parseRosterFromFile — friendly name parsing', () => {
         expect(parsed[1].functionMacro).toBe('FOO_F')
     })
 })
+
+describe('parseRosterFromFile — appended functions via preprocessor concatenation', () => {
+    it('parses MACRO_NAME "suffix" format and separates base + appended functions', () => {
+        const text = [
+            '#define COMMON "LIGHT/HORN"',
+            'ROSTER(1, "Loco", COMMON "/EXTRA")',
+        ].join('\n')
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].functionMacro).toBe('COMMON')
+        expect(roster[0].functions).toHaveLength(3) // LIGHT, HORN, EXTRA
+        expect(roster[0].appendedFunctions).toHaveLength(1) // EXTRA
+        expect(roster[0].appendedFunctions?.[0].name).toBe('EXTRA')
+    })
+
+    it('parses MACRO with empty suffix', () => {
+        const text = [
+            '#define COMMON "LIGHT"',
+            'ROSTER(1, "Loco", COMMON "")',
+        ].join('\n')
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].functionMacro).toBe('COMMON')
+        expect(roster[0].appendedFunctions).toBeUndefined()
+    })
+
+    it('parses MACRO suffix with multiple functions', () => {
+        const text = [
+            '#define COMMON "LIGHT/HORN"',
+            'ROSTER(1, "Loco", COMMON "/EXTRA/PUFF")',
+        ].join('\n')
+        const roster = parseRosterFromFile(text)
+        expect(roster[0].appendedFunctions).toHaveLength(2)
+        expect(roster[0].appendedFunctions?.[0].name).toBe('EXTRA')
+        expect(roster[0].appendedFunctions?.[1].name).toBe('PUFF')
+    })
+
+    it('roundtrips: loco with appended functions survives serialize→parse', () => {
+        const original: Roster[] = [
+            {
+                dccAddress: 1,
+                name: 'Thomas',
+                comment: '',
+                functions: [
+                    { name: 'LIGHT', isMomentary: false, noFunction: false },
+                    { name: 'HORN', isMomentary: false, noFunction: false },
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+                functionMacro: 'COMMON',
+                appendedFunctions: [
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+            },
+        ]
+        const text = serializeRosterToFile(original)
+        // Should emit: ROSTER(1, "Thomas", COMMON "/EXTRA")
+        expect(text).toContain('COMMON "/EXTRA"')
+        const parsed = parseRosterFromFile(text)
+        expect(parsed[0].functionMacro).toBe('COMMON')
+        expect(parsed[0].appendedFunctions).toHaveLength(1)
+    })
+})
+
+describe('serializeRosterToFile — appended functions', () => {
+    it('emits MACRO_NAME "suffix" format when entry has appendedFunctions', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 1,
+                name: 'Loco',
+                functions: [
+                    { name: 'LIGHT', isMomentary: false, noFunction: false },
+                    { name: 'HORN', isMomentary: false, noFunction: false },
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+                comment: '',
+                functionMacro: 'COMMON',
+                appendedFunctions: [
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('COMMON "/EXTRA"')
+        expect(output).toContain('#define COMMON "LIGHT/HORN"')
+    })
+
+    it('emits plain MACRO_NAME when appendedFunctions is empty/undefined', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 1,
+                name: 'Loco',
+                functions: [
+                    { name: 'LIGHT', isMomentary: false, noFunction: false },
+                    { name: 'HORN', isMomentary: false, noFunction: false },
+                ],
+                comment: '',
+                functionMacro: 'COMMON',
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('ROSTER(1, "Loco", COMMON)')
+        // Should not use the "MACRO /suffix" format when no appended functions
+        expect(output).not.toContain('ROSTER(1, "Loco", COMMON "')
+    })
+
+    it('handles multiple locos with mixed appended/non-appended functions', () => {
+        const roster: Roster[] = [
+            {
+                dccAddress: 1,
+                name: 'A',
+                functions: [
+                    { name: 'LIGHT', isMomentary: false, noFunction: false },
+                    { name: 'HORN', isMomentary: false, noFunction: false },
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+                comment: '',
+                functionMacro: 'COMMON',
+                appendedFunctions: [
+                    { name: 'EXTRA', isMomentary: false, noFunction: false },
+                ],
+            },
+            {
+                dccAddress: 2,
+                name: 'B',
+                functions: [
+                    { name: 'LIGHT', isMomentary: false, noFunction: false },
+                    { name: 'HORN', isMomentary: false, noFunction: false },
+                ],
+                comment: '',
+                functionMacro: 'COMMON',
+            },
+        ]
+        const output = serializeRosterToFile(roster)
+        expect(output).toContain('COMMON "/EXTRA"')
+        expect(output).toContain('ROSTER(2, "B", COMMON)')
+    })
+})

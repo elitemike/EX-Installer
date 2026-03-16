@@ -288,7 +288,7 @@ export class RosterEditorCustomElement {
         if (!this.sfTree) return
         const data = this._buildTreeData()
         this.sfTree.fields = {
-            dataSource: data,
+            dataSource: data as any,
             id: 'id',
             text: 'text',
             child: 'children',
@@ -301,26 +301,24 @@ export class RosterEditorCustomElement {
         this._suppressNodeSelected = true
         this.sfTree.refresh()
         this._suppressNodeSelected = false
-        // Evaluate _currentSelectionNodeId() INSIDE the queue so it captures the final
-        // selection state after all synchronous event-handler code (including _setBuffer)
-        // finishes running.
-        queueTask(() => {
-            if (!this.sfTree) return
-            // SF refresh() may not auto-apply expanded:true from data for new group nodes;
-            // explicitly expand all group nodes so child locos are visible.
-            const groupIds = this._buildTreeData()
-                .filter(n => n.id.startsWith('group:'))
-                .map(n => n.id)
-            if (groupIds.length > 0) {
-                this.sfTree.expandAll(groupIds)
-            }
-            const nodeId = this._currentSelectionNodeId()
-            if (nodeId) {
-                this._suppressNodeSelected = true
-                this.sfTree.selectedNodes = [nodeId]
-                this._suppressNodeSelected = false
-            }
-        })
+
+        // Expand all group nodes and restore selection
+        // SF refresh() may not auto-apply expanded:true from data for new group nodes;
+        // explicitly expand all group nodes so child locos are visible.
+        const groupIds = this._buildTreeData()
+            .filter(n => n.id.startsWith('group:'))
+            .map(n => n.id)
+        if (groupIds.length > 0) {
+            this.sfTree.expandAll(groupIds)
+        }
+
+        // Restore the selected node
+        const nodeId = this._currentSelectionNodeId()
+        if (nodeId) {
+            this._suppressNodeSelected = true
+            this.sfTree.selectedNodes = [nodeId]
+            this._suppressNodeSelected = false
+        }
     }
 
     /** Builds custom node content using DOM APIs (no eval; CSP-safe). */
@@ -457,15 +455,18 @@ export class RosterEditorCustomElement {
             functions: entry.functions.map(f => ({ ...f })),
             functionMacro: entry.functionMacro,
             defineFriendlyName: entry.defineFriendlyName,
+            appendedFunctions: entry.appendedFunctions?.map(f => ({ ...f })),
         }
         this.dccAddressInput = String(entry.dccAddress)
         this.errorMessage = ''
+        this.loadAppendedFunctions()
     }
 
     clearBuffer(): void {
         this.editBuffer = null
         this.editBufferIndex = null
         this.errorMessage = ''
+        this.appendedFunctionsList = []
     }
 
     commitBuffer(): void {
@@ -568,11 +569,20 @@ export class RosterEditorCustomElement {
             this.editBufferIndex = null
             this.groupFunctions = funcsCopy.map(f => ({ ...f }))
             this.groupFriendlyName = ''
+            this._rebuildTree()
         } else {
             this.state.addRosterEntry(clone)
+            const cloneIndex = this.state.roster.length - 1
+            this.selectedNodeType = 'loco'
+            this.selectedMacroName = null
+            this.groupFunctions = []
+            this.groupFriendlyName = ''
+            if (this.editBuffer !== null) this.commitBuffer()
+            this._setBuffer(cloneIndex, this.state.roster[cloneIndex])
+            // Rebuild tree; _rebuildTree() will automatically select the cloned node
+            // because editBufferIndex is now set via _setBuffer() above
+            this._rebuildTree()
         }
-
-        this._rebuildTree()
     }
 
     // ── "Edit function list" button (loco-with-macro detail) ─────────────────
@@ -631,6 +641,56 @@ export class RosterEditorCustomElement {
 
         this.state.renameMacro(macroName, trimmed)
         if (this.selectedMacroName === macroName) this.selectedMacroName = trimmed
+        this._rebuildTree()
+    }
+
+    // ── Macro name editing (inline in group panel) ───────────────────────────
+    editingMacroName = false
+    macroNameInput = ''
+
+    startEditingMacroName(): void {
+        if (!this.selectedMacroName) return
+        this.editingMacroName = true
+        this.macroNameInput = this.selectedMacroName
+    }
+
+    cancelEditMacroName(): void {
+        this.editingMacroName = false
+        this.macroNameInput = ''
+    }
+
+    saveMacroName(): void {
+        if (!this.selectedMacroName || !this.macroNameInput.trim()) return
+        const trimmed = this.macroNameInput.trim()
+        if (trimmed === this.selectedMacroName) {
+            this.cancelEditMacroName()
+            return
+        }
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) {
+            this.toastService.show({
+                title: 'Invalid Name',
+                content: 'Macro name must be a valid C identifier (letters, digits, underscore; cannot start with digit).',
+                cssClass: 'e-toast-warning',
+            })
+            return
+        }
+        const existingMacros = new Set(
+            this.state.roster
+                .filter(r => r.functionMacro && r.functionMacro !== this.selectedMacroName)
+                .map(r => r.functionMacro!),
+        )
+        if (existingMacros.has(trimmed)) {
+            this.toastService.show({
+                title: 'Name Already Used',
+                content: `A #define named "${trimmed}" already exists.`,
+                cssClass: 'e-toast-warning',
+            })
+            return
+        }
+        this.state.renameMacro(this.selectedMacroName, trimmed)
+        this.selectedMacroName = trimmed
+        this.editingMacroName = false
+        this.macroNameInput = ''
         this._rebuildTree()
     }
 
@@ -786,6 +846,99 @@ export class RosterEditorCustomElement {
     handleAddFunctionKeydown(event: KeyboardEvent): boolean {
         if (event.key === 'Enter') { this.addFunction(); return false }
         return true
+    }
+
+    // ── Appended functions (for locos with a group) ───────────────────────────
+    appendedFunctionsList: RosterFunction[] = []
+    appendedDraggedIndex: number | null = null
+    newAppendedFunctionName = ''
+    newAppendedFunctionIsMomentary = false
+    newAppendedFunctionNoFunction = false
+
+    /** Load appended functions when selecting a loco with a macro. */
+    loadAppendedFunctions(): void {
+        if (!this.editBuffer?.functionMacro) {
+            this.appendedFunctionsList = []
+            return
+        }
+        this.appendedFunctionsList = this.editBuffer.appendedFunctions?.map(f => ({ ...f })) ?? []
+    }
+
+    addAppendedFunction(): void {
+        if (!this.editBuffer?.functionMacro) return
+        if (!this.newAppendedFunctionNoFunction && !this.newAppendedFunctionName.trim()) return
+        const fn: RosterFunction = {
+            name: this.newAppendedFunctionNoFunction ? '' : this.newAppendedFunctionName.trim(),
+            isMomentary: this.newAppendedFunctionIsMomentary,
+            noFunction: this.newAppendedFunctionNoFunction,
+        }
+        // Update both the UI list and the edit buffer in sync
+        this.appendedFunctionsList = [...this.appendedFunctionsList, fn]
+        this.editBuffer.appendedFunctions = this.appendedFunctionsList.length > 0 ? [...this.appendedFunctionsList] : undefined
+        // Clear input fields
+        this.newAppendedFunctionName = ''
+        this.newAppendedFunctionIsMomentary = false
+        this.newAppendedFunctionNoFunction = false
+        // Defer commit to let Aurelia render the new item first
+        queueTask(() => this.commitBuffer())
+    }
+
+    removeAppendedFunction(index: number): void {
+        this.appendedFunctionsList = this.appendedFunctionsList.filter((_, i) => i !== index)
+        this.editBuffer!.appendedFunctions = this.appendedFunctionsList.length > 0 ? [...this.appendedFunctionsList] : undefined
+        queueTask(() => this.commitBuffer())
+    }
+
+    updateAppendedFunctionName(index: number): void {
+        this.editBuffer!.appendedFunctions = this.appendedFunctionsList.length > 0 ? [...this.appendedFunctionsList] : undefined
+        queueTask(() => this.commitBuffer())
+    }
+
+    toggleAppendedMomentary(index: number): void {
+        this.appendedFunctionsList = this.appendedFunctionsList.map((f, idx) =>
+            idx === index ? { ...f, isMomentary: !f.isMomentary } : f,
+        )
+        this.editBuffer!.appendedFunctions = this.appendedFunctionsList.length > 0 ? [...this.appendedFunctionsList] : undefined
+        queueTask(() => this.commitBuffer())
+    }
+
+    appendedDragStart(i: number, event: DragEvent): void {
+        this.appendedDraggedIndex = i
+        event.dataTransfer!.effectAllowed = 'move'
+    }
+
+    appendedDragOver(event: DragEvent): void {
+        event.preventDefault()
+        event.dataTransfer!.dropEffect = 'move'
+    }
+
+    appendedDrop(targetIndex: number, event: DragEvent): void {
+        event.preventDefault()
+        if (this.appendedDraggedIndex === null || this.appendedDraggedIndex === targetIndex) return
+        const fns = [...this.appendedFunctionsList]
+        const [moved] = fns.splice(this.appendedDraggedIndex, 1)
+        fns.splice(targetIndex, 0, moved)
+        this.appendedFunctionsList = fns
+        this.appendedDraggedIndex = null
+        this.editBuffer!.appendedFunctions = this.appendedFunctionsList.length > 0 ? [...this.appendedFunctionsList] : undefined
+        queueTask(() => this.commitBuffer())
+    }
+
+    appendedDragEnd(): void {
+        this.appendedDraggedIndex = null
+    }
+
+    handleAddAppendedFunctionKeydown(event: KeyboardEvent): boolean {
+        if (event.key === 'Enter') { this.addAppendedFunction(); return false }
+        return true
+    }
+
+    private _updateAppendedFunctions(): void {
+        if (!this.editBuffer?.functionMacro) return
+        // Update the appended functions for serialization
+        this.editBuffer.appendedFunctions = this.appendedFunctionsList.length > 0 ? this.appendedFunctionsList : undefined
+        // Commit will update state.roster with the new editBuffer
+        this.commitBuffer()
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

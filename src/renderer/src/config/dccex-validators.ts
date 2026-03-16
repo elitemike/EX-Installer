@@ -92,19 +92,72 @@ function parseArgSpans(argsRaw: string, innerStart: number): ArgSpan[] {
  * Iterate over every occurrence of `MACRO_NAME(...)` in `text`.
  * Yields the full regex match, the content inside the parens, and the
  * absolute offset where the character after the opening paren sits.
+ *
+ * Properly handles parentheses inside quoted strings (e.g., "Thomas (copy)").
  */
 function* eachMacroCall(
     text: string,
     macroName: string,
 ): Generator<{ fullMatch: RegExpExecArray; argsRaw: string; innerStart: number }> {
-    const re = new RegExp(String.raw`\b${macroName}\s*\(([^)]*)\)`, 'g')
-    let m: RegExpExecArray | null
-    while ((m = re.exec(text)) !== null) {
-        const parenIdx = m.index + m[0].indexOf('(')
-        yield {
-            fullMatch: m,
-            argsRaw: m[1],
-            innerStart: parenIdx + 1,
+    // Find all positions where MACRO_NAME( appears
+    const startRe = new RegExp(String.raw`\b${macroName}\s*\(`, 'g')
+    let startMatch: RegExpExecArray | null
+
+    while ((startMatch = startRe.exec(text)) !== null) {
+        const parenStart = startMatch.index + startMatch[0].indexOf('(')
+        const innerStart = parenStart + 1
+
+        // Find matching closing paren, respecting quoted strings
+        let depth = 1
+        let inQuote = false
+        let escaped = false
+        let pos = innerStart
+
+        while (pos < text.length && depth > 0) {
+            const ch = text[pos]
+
+            if (escaped) {
+                escaped = false
+                pos++
+                continue
+            }
+
+            if (ch === '\\') {
+                escaped = true
+                pos++
+                continue
+            }
+
+            if (ch === '"') {
+                inQuote = !inQuote
+                pos++
+                continue
+            }
+
+            if (!inQuote) {
+                if (ch === '(') depth++
+                else if (ch === ')') depth--
+            }
+
+            pos++
+        }
+
+        if (depth === 0) {
+            const argsRaw = text.slice(innerStart, pos - 1)
+            const fullMatch = new RegExp(String.raw`\b${macroName}\s*\([^)]*\)`) as unknown as RegExpExecArray
+
+            // Create a fake RegExpExecArray for compatibility
+            const result = {
+                0: text.slice(parenStart - macroName.length, pos),
+                1: argsRaw,
+                index: parenStart - macroName.length,
+            } as unknown as RegExpExecArray
+
+            yield {
+                fullMatch: result,
+                argsRaw,
+                innerStart,
+            }
         }
     }
 }
@@ -133,10 +186,10 @@ function getDefineNames(text: string): Set<string> {
 // ── ROSTER validator ──────────────────────────────────────────────────────────
 
 /**
- * ROSTER(dccAddress, "Name", "Fn0/Fn1/..." | DEFINE)
+ * ROSTER(dccAddress, "Name", "Fn0/Fn1/..." | DEFINE | DEFINE "/suffix")
  *   arg 1 — integer DCC address (1–9999)
  *   arg 2 — double-quoted loco name string
- *   arg 3 — double-quoted function list string OR a #define identifier
+ *   arg 3 — double-quoted function list string OR a #define identifier OR identifier + "/suffix"
  */
 function validateRoster(text: string, out: monaco.editor.IMarkerData[]): void {
     const defines = getDefineNames(text)
@@ -174,8 +227,26 @@ function validateRoster(text: string, out: monaco.editor.IMarkerData[]): void {
             ))
         }
 
+        // Validate function list: can be quoted string, identifier only, or identifier + quoted suffix
         if (!isQuotedString(fnList.value)) {
-            if (isIdentifier(fnList.value)) {
+            // Check if it's "IDENTIFIER SPACE QUOTED_STRING" (preprocessor concatenation for appended functions)
+            // Matches: MACRO_NAME "/functionList"
+            const macroWithSuffixMatch = fnList.value.match(/^([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]*)"\s*$/)
+            if (macroWithSuffixMatch) {
+                const [, macroName, suffixContent] = macroWithSuffixMatch
+                // Verify macro is defined
+                if (!defines.has(macroName)) {
+                    out.push(makeMarker(text, fnList.start, fnList.end,
+                        `'${macroName}' is not defined in this file. Add '#define ${macroName} "Fn0/Fn1/..."' above the ROSTER entry.`,
+                        monaco.MarkerSeverity.Warning,
+                    ))
+                }
+                // Suffix content is already extracted (without quotes)
+                // It should contain function names separated by slashes, possibly with a leading slash
+                // Example: "/BRAKE" or "BRAKE" or "/F1/F2"
+                // Leading slash is allowed as it matches the preprocessor concatenation format
+            } else if (isIdentifier(fnList.value)) {
+                // Plain identifier — must be defined
                 if (!defines.has(fnList.value)) {
                     out.push(makeMarker(text, fnList.start, fnList.end,
                         `'${fnList.value}' is not defined in this file. Add '#define ${fnList.value} "Fn0/Fn1/..."' above the ROSTER entry.`,
@@ -183,8 +254,9 @@ function validateRoster(text: string, out: monaco.editor.IMarkerData[]): void {
                     ))
                 }
             } else {
+                // Neither quoted string, nor identifier, nor macro+suffix format
                 out.push(makeMarker(text, fnList.start, fnList.end,
-                    `Function list must be a quoted string (e.g. "LIGHT/*HORN") or a #define identifier.`,
+                    `Function list must be a quoted string (e.g. "LIGHT/*HORN"), a #define identifier, or a macro with appended functions (e.g. MACRO "/EXTRA").`,
                 ))
             }
         }

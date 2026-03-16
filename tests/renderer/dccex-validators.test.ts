@@ -173,6 +173,81 @@ describe('validateRoster — function list argument', () => {
             expect(undefinedWarnings[0].message).toContain('NO_DEFINE_HERE')
         })
     })
+
+    describe('#define identifier with appended quoted string (preprocessor concatenation)', () => {
+        it('accepts MACRO_NAME "suffix" format where MACRO_NAME is defined', () => {
+            const text = [
+                '#define COMMON "LIGHT/HORN"',
+                'ROSTER(1, "Loco", COMMON "/EXTRA")',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            expect(markers).toHaveLength(0)
+        })
+
+        it('accepts MACRO_NAME "suffix" even if spaces between macro and suffix', () => {
+            const text = [
+                '#define COMMON "LIGHT/HORN"',
+                'ROSTER(1, "Loco", COMMON  "/EXTRA")',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            expect(markers).toHaveLength(0)
+        })
+
+        it('warns when MACRO_NAME is undefined but has quoted suffix', () => {
+            const markers = _runValidatorsForTest(
+                'myRoster.h',
+                'ROSTER(1, "Loco", UNDEFINED_MACRO "/EXTRA")',
+            )
+            const undefinedWarnings = markers.filter((m) => m.message.includes('is not defined'))
+            expect(undefinedWarnings).toHaveLength(1)
+            expect(undefinedWarnings[0].message).toContain('UNDEFINED_MACRO')
+            expect(undefinedWarnings[0].severity).toBe(WARNING)
+        })
+
+        it('errors when suffix is not quoted', () => {
+            const text = [
+                '#define COMMON "LIGHT/HORN"',
+                'ROSTER(1, "Loco", COMMON /EXTRA)',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            // The validator rejects unquoted suffixes; check for any error
+            const errorMarkers = markers.filter((m) => m.severity === ERROR)
+            expect(errorMarkers).toHaveLength(1)
+            expect(errorMarkers[0].message).toContain('Function list must be')
+        })
+
+        it('accepts multiple entries with mixed formats (some with suffix, some without)', () => {
+            const text = [
+                '#define COMMON "LIGHT/HORN"',
+                '#define STEAM "WHISTLE/BELL"',
+                'ROSTER(1, "Loco A", COMMON)',
+                'ROSTER(2, "Loco B", COMMON "/EXTRA")',
+                'ROSTER(3, "Loco C", STEAM "/PUFF")',
+                'ROSTER(4, "Loco D", "LIGHT/HORN")',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            expect(markers).toHaveLength(0)
+        })
+
+        it('handles quoted strings with parentheses (e.g., "(copy)")', () => {
+            const text = [
+                '#define THOMAS_F "LIGHT/HORN"',
+                'ROSTER(6263, "Thomas (copy)", THOMAS_F)',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            expect(markers).toHaveLength(0)
+        })
+
+        it('handles complex loco names with special chars and parentheses', () => {
+            const text = [
+                '#define STEAM_F "WHISTLE/BELL"',
+                'ROSTER(1001, "CSX SD80MAC (2009) #801", STEAM_F)',
+                'ROSTER(1002, "UP Big Boy (4014) (rebuilt)", STEAM_F)',
+            ].join('\n')
+            const markers = _runValidatorsForTest('myRoster.h', text)
+            expect(markers).toHaveLength(0)
+        })
+    })
 })
 
 // ── getDefineNames (tested indirectly via validateRoster) ─────────────────────

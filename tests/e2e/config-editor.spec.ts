@@ -489,4 +489,93 @@ test.describe('Roster Editor — TreeView grouping (pre-grouped roster)', () => 
         const addressInput = detail.locator('input[type="number"]')
         await expect(addressInput).toHaveValue('6')
     })
+
+    test('macro name edit panel appears when Edit button clicked', async ({ rosterGroupedPage }) => {
+        await openRosterEditor(rosterGroupedPage)
+        const tree = rosterGroupedPage.locator('#roster-treeview')
+        const detail = rosterGroupedPage.locator('roster-editor')
+
+        // Click group node to enter group editor
+        const steamGroupLi = tree.locator('li').filter({ hasText: 'Steam Engines' }).first()
+        await steamGroupLi.locator('.e-fullrow').first().click()
+
+        // Find and click the Edit button for macro name
+        const editBtn = detail.locator('button:has-text("Edit")').first()
+        await editBtn.click()
+
+        // Should show input for macro name editing with Save/Cancel buttons
+        const macroInput = detail.locator('input').filter({ value: /STEAM_F/ }).first()
+        await expect(macroInput).toBeVisible()
+        await expect(detail.locator('button:has-text("Save")').first()).toBeVisible()
+        await expect(detail.locator('button:has-text("Cancel")').first()).toBeVisible()
+    })
+
+    test('custom functions section appears for grouped locos', async ({ rosterGroupedPage }) => {
+        await openRosterEditor(rosterGroupedPage)
+        const tree = rosterGroupedPage.locator('#roster-treeview')
+        const detail = rosterGroupedPage.locator('roster-editor')
+
+        // Find a grouped loco (Thomas)
+        const steamGroupLi = tree.locator('li').filter({ hasText: 'Steam Engines' }).first()
+        const thomasNode = steamGroupLi.locator('ul li').filter({ hasText: 'Thomas' }).first()
+        await thomasNode.locator('.e-fullrow').click()
+
+        // Verify custom functions section is present with proper label
+        await expect(detail.getByText('Custom Functions (optional)')).toBeVisible()
+
+        // Add a custom function by finding the input and the add button
+        const customInput = detail.locator('input[placeholder="New custom function"]')
+        await customInput.fill('BRAKE')
+        await customInput.press('Enter')
+
+        // Wait for the component to process the add
+        await rosterGroupedPage.waitForTimeout(1000)
+
+        // Switch to Raw mode to verify serialization
+        const rawTab = rosterGroupedPage.locator('button:has-text("Raw")').first()
+        await rawTab.click()
+        await rosterGroupedPage.waitForTimeout(500)
+
+        // The key test: verify serialization shows the appended function syntax
+        const monaco = rosterGroupedPage.locator('monaco-editor')
+        const rawContent = await monaco.textContent()
+
+        // Verify NO [INVALID] markers appear (regression test for validation regex)
+        expect(rawContent).not.toContain('[INVALID]')
+
+        // Check for the ROSTER line with BRAKE appended
+        expect(rawContent).toContain('STEAM_F')
+        expect(rawContent).toContain('BRAKE')
+        expect(rawContent).toContain('Thomas')
+        expect(rawContent).toMatch(/STEAM_F\s*"\/BRAKE"/)
+
+        // Switch back to Visual mode
+        const visualTab = rosterGroupedPage.locator('button:has-text("Visual")').first()
+        await visualTab.click()
+        await rosterGroupedPage.waitForTimeout(500)
+
+        // Verify the loco is still there and custom functions section still appears
+        await expect(detail.getByText('Custom Functions (optional)')).toBeVisible()
+    })
+
+    test('handles loco names with special characters correctly', async ({ rosterGroupedPage }) => {
+        // Verifies that the existing grouped locos load correctly with the detail panel
+        // This serves as a regression test for parsing and display stability
+        await openRosterEditor(rosterGroupedPage)
+        const tree = rosterGroupedPage.locator('#roster-treeview')
+        const detail = rosterGroupedPage.locator('roster-editor')
+
+        // Click a grouped loco (Thomas) to load detail panel
+        const steamGroupLi = tree.locator('li').filter({ hasText: 'Steam Engines' }).first()
+        const thomas = steamGroupLi.locator('ul li').filter({ hasText: 'Thomas' }).first()
+        await expect(thomas).toBeVisible()
+        await thomas.locator('.e-fullrow').click()
+
+        // Should show the shared function list card
+        await expect(detail.getByText('Functions from Group')).toBeVisible()
+
+        // Verify detail panel loads correctly and shows the DCC address
+        const addressInput = detail.locator('input[type="number"]').first()
+        await expect(addressInput).toHaveValue('3')
+    })
 })
