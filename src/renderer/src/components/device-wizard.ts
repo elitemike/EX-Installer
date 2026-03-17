@@ -131,7 +131,7 @@ export class DeviceWizard {
             const serial = this.usb.serialPorts
 
             const cliMap = new Map<string, ArduinoCliBoardInfo>()
-            if (this.state.cliReady) {
+            if (this.state.cliReady || this.config.isMock) {
                 try {
                     const cliBoards = await this.cli.listBoards()
                     for (const b of cliBoards) cliMap.set(b.port, b)
@@ -140,17 +140,21 @@ export class DeviceWizard {
 
             this.boards = serial.map((sp) => {
                 const cliMatch = cliMap.get(sp.path)
-                if (cliMatch) return { ...cliMatch, serialNumber: cliMatch.serialNumber ?? sp.serialNumber }
+                // Only use the CLI result directly when it includes an FQBN — if the CLI
+                // detected the port but couldn't identify the board (fqbn: ''), fall
+                // through to the KNOWN_BOARDS lookup so VID:PID-matched boards still get
+                // their name and FQBN.
+                if (cliMatch?.fqbn) return { ...cliMatch, serialNumber: cliMatch.serialNumber ?? sp.serialNumber }
                 const vid = sp.vendorId?.toLowerCase() ?? ''
                 const pid = sp.productId?.toLowerCase() ?? ''
                 const vidPid = vid && pid ? `${vid}:${pid}` : ''
                 const knownBoard = KNOWN_BOARDS[vidPid]
                 return {
-                    name: knownBoard?.name ?? sp.manufacturer ?? 'Unknown device',
+                    name: cliMatch?.name || knownBoard?.name || sp.manufacturer || 'Unknown device',
                     fqbn: knownBoard?.fqbn ?? '',
                     port: sp.path,
                     protocol: 'serial',
-                    serialNumber: sp.serialNumber,
+                    serialNumber: cliMatch?.serialNumber ?? sp.serialNumber,
                 } satisfies ArduinoCliBoardInfo
             })
         } catch (err) {

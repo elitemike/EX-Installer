@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Mock electron ────────────────────────────────────────────────────────────
-vi.mock('electron', () => ({
+vi.mock('../../src/main/electron-app', () => ({
     app: { getPath: vi.fn(() => '/mock/home') },
     dialog: { showOpenDialog: vi.fn() },
     BrowserWindow: { getFocusedWindow: vi.fn(() => null) },
@@ -206,7 +206,7 @@ describe('deleteFiles()', () => {
 
 describe('selectDirectory()', () => {
     it('returns null when no focused window', async () => {
-        const { BrowserWindow } = await import('electron')
+        const { BrowserWindow } = await import('../../src/main/electron-app')
         vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null)
         const svc = makeService()
         const result = await svc.selectDirectory()

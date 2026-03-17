@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app } from './electron-app'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 

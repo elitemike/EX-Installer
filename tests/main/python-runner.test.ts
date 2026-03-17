@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Mock electron ─────────────────────────────────────────────────────────────
-vi.mock('electron', () => ({
+vi.mock('../../src/main/electron-app', () => ({
     app: {
         getPath: vi.fn(() => '/mock/home'),
         isPackaged: false,
@@ -22,7 +22,7 @@ const { MockPythonShell } = vi.hoisted(() => ({
     MockPythonShell: vi.fn(),
 }))
 
-vi.mock('python-shell', () => ({
+vi.mock('../../src/main/python-shell-wrapper', () => ({
     PythonShell: MockPythonShell,
 }))
 

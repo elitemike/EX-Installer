@@ -29,6 +29,10 @@ export class Home {
     private readonly toastService = resolve(ToastService)
     private readonly cli = resolve(ArduinoCliService)
 
+    canLoad(): boolean | string {
+        return this.state.cliReady ? true : 'startup'
+    }
+
     async binding(): Promise<void> {
         await this.loadSavedConfigs()
     }

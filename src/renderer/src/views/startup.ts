@@ -43,7 +43,12 @@ export class Startup {
     }
 
     async attached(): Promise<void> {
-        await this.config.ready
+        try {
+            await this.config.ready
+        } catch {
+            // Config IPC failure is non-fatal — proceed with defaults
+            // (skipStartup stays false, isMock stays false)
+        }
         if (this.config.skipStartup) {
             this.markReady()
             return

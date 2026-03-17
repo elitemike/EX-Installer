@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Mock electron ────────────────────────────────────────────────────────────
-vi.mock('electron', () => ({
+vi.mock('../../src/main/electron-app', () => ({
     app: {
         getPath: vi.fn((_key: string) => '/mock/home'),
     },

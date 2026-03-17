@@ -1,6 +1,6 @@
 import { join } from 'path'
-import { app } from 'electron'
-import simpleGit, { SimpleGit } from 'simple-git'
+import { app } from './electron-app'
+import simpleGit, { SimpleGit } from './simple-git-wrapper'
 
 export class GitService {
     private getGit(repoPath?: string): SimpleGit {

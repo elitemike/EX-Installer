@@ -58,7 +58,8 @@ export class InstallerState {
     activeConfigId: string | null = null
 
     reset(): void {
-        this.cliReady = false
+        // NOTE: cliReady is intentionally NOT reset — CLI readiness is established
+        // once during startup and persists for the entire app session.
         this.selectedDevice = null
         this.selectedProduct = null
         this.selectedVersion = null

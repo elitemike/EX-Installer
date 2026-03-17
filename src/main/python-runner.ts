@@ -1,7 +1,6 @@
-import { BrowserWindow } from 'electron'
-import { PythonShell, Options as PythonOptions } from 'python-shell'
+import { app, BrowserWindow } from './electron-app'
+import { PythonShell, PythonOptions } from './python-shell-wrapper'
 import { join } from 'path'
-import { app } from 'electron'
 
 export interface PythonJobOptions {
     /** Python script path relative to the `python/` resource directory. */

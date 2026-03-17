@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app } from './electron-app'
 import { join, basename } from 'path'
 import { existsSync, mkdirSync, createWriteStream, chmodSync, unlinkSync } from 'fs'
 import { readdir, rm, mkdtemp, cp } from 'fs/promises'
@@ -345,16 +345,23 @@ export class ArduinoCliService {
             const follow = (currentUrl: string) => {
                 httpsGet(currentUrl, (res) => {
                     if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                        // Consume and discard the redirect body so the socket is released
+                        res.resume()
                         follow(res.headers.location)
                         return
                     }
                     if (res.statusCode !== 200) {
+                        res.resume()
                         reject(new Error(`Download failed: HTTP ${res.statusCode}`))
                         return
                     }
                     const file = createWriteStream(dest)
+                    // Catch network errors on the response stream (e.g. mid-download drop)
+                    res.on('error', (err) => { file.destroy(); reject(err) })
                     res.pipe(file)
-                    file.on('finish', () => { file.close(); resolve() })
+                    // Wait for the file handle to close before resolving so the full
+                    // archive is on disk before extraction starts
+                    file.on('finish', () => { file.close((err) => err ? reject(err) : resolve()) })
                     file.on('error', reject)
                 }).on('error', reject)
             }

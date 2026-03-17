@@ -47,6 +47,10 @@ export class Workspace {
     showDeviceMenu = false
     savedConfigs: SavedConfiguration[] = []
 
+    canLoad(): boolean | string {
+        return this.state.cliReady ? true : 'startup'
+    }
+
     async binding(): Promise<void> {
         await this.config.ready
         this.isMock = this.config.isMock

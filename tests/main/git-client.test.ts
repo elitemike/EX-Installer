@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Mock electron ────────────────────────────────────────────────────────────
-vi.mock('electron', () => ({
+vi.mock('../../src/main/electron-app', () => ({
     app: { getPath: vi.fn(() => '/mock/home') },
 }))
 
@@ -22,7 +22,7 @@ const mockGitInstance = {
     submoduleUpdate: vi.fn().mockResolvedValue(undefined),
 }
 
-vi.mock('simple-git', () => ({
+vi.mock('../../src/main/simple-git-wrapper', () => ({
     default: vi.fn(() => mockGitInstance),
 }))
 

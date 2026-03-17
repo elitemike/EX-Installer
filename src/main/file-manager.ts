@@ -1,4 +1,4 @@
-import { app, dialog, BrowserWindow } from 'electron'
+import { app, dialog, BrowserWindow } from './electron-app'
 import { join } from 'path'
 import { readFile, writeFile, readdir, access, mkdir, cp, rm } from 'fs/promises'
 
