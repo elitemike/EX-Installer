@@ -112,8 +112,10 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
     private changeDisposable: monaco.IDisposable | null = null
     private isUpdatingFromBinding = false
     private debounceTimer: ReturnType<typeof setTimeout> | null = null
+    private _ro: ResizeObserver | null = null
 
     attached(): void {
+        try { console.debug('MonacoEditor attached', { filename: this.filename, containerRect: this.container?.getBoundingClientRect?.() }) } catch { }
         registerProviders()
 
         // Define a custom theme based on vs-dark that explicitly sets the
@@ -192,9 +194,40 @@ export class MonacoEditorCustomElement implements ICustomElementViewModel {
             overflowWidgetsDomNode: document.body,
         })
 
+        try {
+            const rect = this.container.getBoundingClientRect()
+            console.debug('MonacoEditor container rect after create', { w: rect.width, h: rect.height })
+            // Temporary visual debug aid: outline/background so we can see whether
+            // the editor container is sized and visible in the app. Remove if noisy.
+            try {
+                this.container.style.outline = '1px solid rgba(0,255,0,0.25)'
+                this.container.style.background = 'rgba(255,0,0,0.02)'
+            } catch { }
+        } catch (e) { /* ignore */ }
+
+        try { console.debug('MonacoEditor model uri, hasEditor', { uri: this.model?.uri?.toString?.(), hasEditor: !!this.editor }) } catch { }
+
         // Force layout after the DOM has fully settled (fixes height:100% chains in flex)
         requestAnimationFrame(() => this.editor?.layout())
         setTimeout(() => this.editor?.layout(), 50)
+
+        // If the container has zero size at attach time (e.g. hidden by parent
+        // flex or awaiting layout), observe it and trigger layout when it
+        // obtains a non-zero size. Use ResizeObserver when available.
+        try {
+            if (typeof ResizeObserver !== 'undefined') {
+                this._ro = new ResizeObserver(() => {
+                    try { this.editor?.layout() } catch { /* ignore */ }
+                })
+                this._ro.observe(this.container)
+            } else {
+                const onResize = () => { try { this.editor?.layout() } catch { } }
+                window.addEventListener('resize', onResize)
+                this._ro = { disconnect: () => window.removeEventListener('resize', onResize) } as unknown as ResizeObserver
+            }
+        } catch (e) {
+            /* ignore */
+        }
 
         // Re-validate after edge layout and Monaco's internal decoration pipeline
         // are both ready. We must fire AFTER the 50ms layout setTimeout above, and

@@ -25,13 +25,20 @@ export class FileEditorPanelCustomElement {
      * Single discriminant — exactly one branch in the template reads from this,
      * so it is structurally impossible for two panes to be visible at the same time.
      */
-    get currentView(): 'configH' | 'roster' | 'turnouts' | 'automation' | 'generic' | 'none' {
+    get currentView(): 'configH' | 'roster' | 'turnouts' | 'automation' | 'sensors' | 'signals' | 'routes' | 'sequences' | 'aliases' | 'generic' | 'none' {
         const name = this.activeFile?.name
+        // Debug: surface current view and active filename to console to aid troubleshooting
+        try { console.debug('FileEditorPanel currentView check', { name }) } catch { /* ignore */ }
         if (!name) return 'none'
         if (name === 'config.h' || name === 'myConfig.h') return 'configH'
         if (name === 'myRoster.h') return 'roster'
         if (name === 'myTurnouts.h') return 'turnouts'
         if (name === 'myAutomation.h') return 'automation'
+        if (name === 'mySensors.h') return 'sensors'
+        if (name === 'mySignals.h') return 'signals'
+        if (name === 'myRoutes.h') return 'routes'
+        if (name === 'mySequences.h') return 'sequences'
+        if (name === 'myAliases.h') return 'aliases'
         return 'generic'
     }
 

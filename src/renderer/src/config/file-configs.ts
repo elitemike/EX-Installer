@@ -65,6 +65,77 @@ export const FILE_CONFIGS: Record<string, FileConfig> = {
             },
         ],
     },
+    'mySensors.h': {
+        friendlyName: 'Sensors',
+        completions: [
+            {
+                label: 'SENSOR',
+                detail: 'SENSOR(id, pin, "desc")',
+                documentation: 'Define a sensor connected to a GPIO pin.',
+                insertText: 'SENSOR(${1:id}, ${2:pin}, "${3:description}")',
+                hover: {
+                    title: 'SENSOR Macro',
+                    description: 'Define a sensor connected to a GPIO pin.',
+                    example: 'SENSOR(1, 17, "Yard Entrance")',
+                },
+            },
+        ],
+    },
+    'mySignals.h': {
+        friendlyName: 'Signals',
+        completions: [
+            {
+                label: 'SIGNAL',
+                detail: 'SIGNAL(red_pin, amber_pin, green_pin)',
+                documentation: 'Define a signal connected to a GPIO pin.',
+                insertText: 'SIGNAL(${1:red_pin}, ${2:amber_pin}, ${3:green_pin})',
+                hover: {
+                    title: 'SIGNAL Macro',
+                    description: 'Define a 3-aspect signal connected to GPIO pins.',
+                    example: 'SIGNAL(5, 6, 13) // red=GPIO5, amber=GPIO6, green=GPIO13',
+                },
+            },
+        ],
+    },
+
+    'myRoutes.h': {
+        friendlyName: 'Routes',
+        completions: [
+            {
+                label: 'ROUTE',
+                detail: 'ROUTE(id, "desc")',
+                documentation: 'Define a named route visible to throttle apps.',
+                insertText: 'ROUTE(${1:id}, "${2:description}")\n  ${0}\nDONE',
+                hover: { title: 'ROUTE', description: 'Defines a named route that can be activated from a throttle.' },
+            },
+        ],
+    },
+
+    'mySequences.h': {
+        friendlyName: 'Sequences',
+        completions: [
+            {
+                label: 'SEQUENCE',
+                detail: 'SEQUENCE(id)',
+                documentation: 'Begin a named automation sequence.',
+                insertText: 'SEQUENCE(${1:id})\n  ${0}\nDONE',
+                hover: { title: 'SEQUENCE', description: 'Defines a reusable sequence of EX-RAIL commands.' },
+            },
+        ],
+    },
+
+    'myAliases.h': {
+        friendlyName: 'Aliases',
+        completions: [
+            {
+                label: 'ALIAS',
+                detail: '#define alias',
+                documentation: 'Define a named alias or #define used elsewhere.',
+                insertText: '#define ${1:NAME} ${2:VALUE}',
+                hover: { title: 'ALIAS / #define', description: 'Define a preprocessor alias or helper constant.' },
+            },
+        ],
+    },
 
     'myTurnouts.h': {
         friendlyName: 'Turnouts',

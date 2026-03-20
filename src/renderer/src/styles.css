@@ -35,7 +35,12 @@ file-editor-panel,
 roster-editor,
 turnout-editor,
 config-h-editor,
-monaco-editor {
+monaco-editor,
+sensors-editor,
+signals-editor,
+routes-editor,
+sequences-editor,
+aliases-editor {
     display: flex;
     flex-direction: column;
     flex: 1 1 0%;

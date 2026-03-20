@@ -28,6 +28,11 @@ import { ConfigHEditorCustomElement } from './components/config-h-editor'
 import { FileEditorPanelCustomElement } from './components/file-editor-panel'
 import { ConfirmDialog } from './components/confirm-dialog'
 import { CompileProgressCustomElement } from './components/compile-progress'
+import { SensorsEditorCustomElement } from './components/sensors-editor'
+import { SignalsEditorCustomElement } from './components/signals-editor'
+import { RoutesEditorCustomElement } from './components/routes-editor'
+import { SequencesEditorCustomElement } from './components/sequences-editor'
+import { AliasesEditorCustomElement } from './components/aliases-editor'
 
 // Per-product visual config forms
 import { CommandstationConfigFormCustomElement } from './components/config-forms/commandstation-config-form'
@@ -72,6 +77,11 @@ new Aurelia()
         TurnoutEditorCustomElement,
         ConfigHEditorCustomElement,
         FileEditorPanelCustomElement,
+        SensorsEditorCustomElement,
+        SignalsEditorCustomElement,
+        RoutesEditorCustomElement,
+        SequencesEditorCustomElement,
+        AliasesEditorCustomElement,
         ConfirmDialog,
         CompileProgressCustomElement,
         CommandstationConfigFormCustomElement,

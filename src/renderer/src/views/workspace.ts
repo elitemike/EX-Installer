@@ -123,7 +123,17 @@ export class Workspace {
         }
         // Auto-append .h if no extension
         if (!name.includes('.')) name = name + '.h'
-        const reserved = ['config.h', 'myRoster.h', 'myTurnouts.h', 'myAutomation.h']
+        const reserved = [
+            'config.h',
+            'myRoster.h',
+            'myTurnouts.h',
+            'mySignals.h',
+            'mySensors.h',
+            'myRoutes.h',
+            'mySequences.h',
+            'myAliases.h',
+            'myAutomation.h',
+        ]
         if (reserved.includes(name)) {
             this.newFileError = `"${name}" is a reserved file name.`
             return

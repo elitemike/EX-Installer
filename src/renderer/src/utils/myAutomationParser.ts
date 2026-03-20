@@ -98,6 +98,163 @@ export interface AutomationData {
     preservedContent: string;
 }
 
+// ─── Sensors, Signals, Routes, Sequences, Aliases parsing ───────────────
+
+export interface SensorEntry {
+    id: number;
+    pin: number;
+    description: string;
+}
+
+export interface SignalEntry {
+    red: number;
+    amber: number;
+    green: number;
+    description?: string;
+}
+
+export interface RouteEntry {
+    id: number;
+    description: string;
+    body: string; // raw body between ROUTE(...) and DONE
+}
+
+export interface SequenceEntry {
+    id: number;
+    body: string; // raw body between SEQUENCE(...) and DONE
+}
+
+export interface AliasEntry {
+    name: string;
+    value: string;
+}
+
+export function parseSensorsFromFile(fileContent: string): SensorEntry[] {
+    const uncommented = fileContent
+        .split('\n')
+        .map(l => (l.trimStart().startsWith('//') ? '' : l))
+        .join('\n');
+    const sensorRe = /SENSOR\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*"([^"]*)"\s*\)(?:\s*\/\/\s*(.*))?/g;
+    const out: SensorEntry[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = sensorRe.exec(uncommented)) !== null) {
+        out.push({ id: parseInt(m[1], 10), pin: parseInt(m[2], 10), description: m[3] });
+    }
+    return out;
+}
+
+export function serializeSensorsToFile(sensors: SensorEntry[]): string {
+    return sensors.map(s => `SENSOR(${s.id}, ${s.pin}, "${s.description}")`).join('\n');
+}
+
+export function parseSignalsFromFile(fileContent: string): SignalEntry[] {
+    const uncommented = fileContent
+        .split('\n')
+        .map(l => (l.trimStart().startsWith('//') ? '' : l))
+        .join('\n');
+    const sigRe = /SIGNAL\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)(?:\s*\/\/\s*(.*))?/g;
+    const out: SignalEntry[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = sigRe.exec(uncommented)) !== null) {
+        out.push({ red: parseInt(m[1], 10), amber: parseInt(m[2], 10), green: parseInt(m[3], 10), description: m[4] || '' });
+    }
+    return out;
+}
+
+export function serializeSignalsToFile(signals: SignalEntry[]): string {
+    return signals.map(s => `SIGNAL(${s.red}, ${s.amber}, ${s.green})`).join('\n');
+}
+
+export function parseRoutesFromFile(fileContent: string): RouteEntry[] {
+    const lines = fileContent.split('\n');
+    const out: RouteEntry[] = [];
+    const routeStart = /^ROUTE\s*\(\s*(\d+)\s*,\s*"([^"]*)"\s*\)\s*$/;
+    let i = 0;
+    while (i < lines.length) {
+        const m = lines[i].match(routeStart);
+        if (m) {
+            const id = parseInt(m[1], 10);
+            const desc = m[2];
+            const bodyLines: string[] = [];
+            i++;
+            while (i < lines.length && !/^DONE\s*$/.test(lines[i])) {
+                bodyLines.push(lines[i]);
+                i++;
+            }
+            // skip DONE
+            i++;
+            out.push({ id, description: desc, body: bodyLines.join('\n') });
+            continue;
+        }
+        i++;
+    }
+    return out;
+}
+
+export function serializeRoutesToFile(routes: RouteEntry[]): string {
+    const lines: string[] = [];
+    for (const r of routes) {
+        lines.push(`ROUTE(${r.id}, "${r.description}")`);
+        if (r.body && r.body.trim()) lines.push(r.body);
+        lines.push('DONE');
+        lines.push('');
+    }
+    return lines.join('\n').trim();
+}
+
+export function parseSequencesFromFile(fileContent: string): SequenceEntry[] {
+    const lines = fileContent.split('\n');
+    const out: SequenceEntry[] = [];
+    const seqStart = /^SEQUENCE\s*\(\s*(\d+)\s*\)\s*$/;
+    let i = 0;
+    while (i < lines.length) {
+        const m = lines[i].match(seqStart);
+        if (m) {
+            const id = parseInt(m[1], 10);
+            const bodyLines: string[] = [];
+            i++;
+            while (i < lines.length && !/^DONE\s*$/.test(lines[i])) {
+                bodyLines.push(lines[i]);
+                i++;
+            }
+            i++; // skip DONE
+            out.push({ id, body: bodyLines.join('\n') });
+            continue;
+        }
+        i++;
+    }
+    return out;
+}
+
+export function serializeSequencesToFile(seqs: SequenceEntry[]): string {
+    const lines: string[] = [];
+    for (const s of seqs) {
+        lines.push(`SEQUENCE(${s.id})`);
+        if (s.body && s.body.trim()) lines.push(s.body);
+        lines.push('DONE');
+        lines.push('');
+    }
+    return lines.join('\n').trim();
+}
+
+export function parseAliasesFromFile(fileContent: string): AliasEntry[] {
+    const uncommented = fileContent
+        .split('\n')
+        .map(l => (l.trimStart().startsWith('//') ? '' : l))
+        .join('\n');
+    const defRe = /^\s*#define\s+(\w+)\s+"?([^\"]*)"?\s*(?:\/\/.*)?$/gm;
+    const out: AliasEntry[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = defRe.exec(uncommented)) !== null) {
+        out.push({ name: m[1], value: m[2] });
+    }
+    return out;
+}
+
+export function serializeAliasesToFile(aliases: AliasEntry[]): string {
+    return aliases.map(a => `#define ${a.name} "${a.value}"`).join('\n');
+}
+
 // ─── Roster parsing ─────────────────────────────────────────────────────────
 
 function parseFunction(str: string): RosterFunction {

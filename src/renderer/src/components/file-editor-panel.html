@@ -35,6 +35,31 @@
             </div>
         </div>
 
+        <!-- mySensors.h → sensors-editor -->
+        <div if.bind="currentView === 'sensors'" class="flex flex-col flex-1 overflow-hidden">
+            <sensors-editor></sensors-editor>
+        </div>
+
+        <!-- mySignals.h → signals-editor -->
+        <div if.bind="currentView === 'signals'" class="flex flex-col flex-1 overflow-hidden">
+            <signals-editor></signals-editor>
+        </div>
+
+        <!-- myRoutes.h → routes-editor -->
+        <div if.bind="currentView === 'routes'" class="flex flex-col flex-1 overflow-hidden">
+            <routes-editor></routes-editor>
+        </div>
+
+        <!-- mySequences.h → sequences-editor -->
+        <div if.bind="currentView === 'sequences'" class="flex flex-col flex-1 overflow-hidden">
+            <sequences-editor></sequences-editor>
+        </div>
+
+        <!-- myAliases.h → aliases-editor -->
+        <div if.bind="currentView === 'aliases'" class="flex flex-col flex-1 overflow-hidden">
+            <aliases-editor></aliases-editor>
+        </div>
+
         <!-- Generic / unknown file → plain Monaco editor -->
         <div if.bind="currentView === 'generic' && activeFile" class="flex flex-col flex-1 min-h-0">
             <div class="flex items-center gap-2 px-3 py-2.5 border-b border-white/10 bg-gray-900/60 shrink-0">

@@ -1,12 +1,31 @@
 import { observable, resolve } from 'aurelia'
 import { InstallerState } from './installer-state'
-import type { Roster, Turnout, RosterFunction } from '../utils/myAutomationParser'
+import type {
+    Roster,
+    Turnout,
+    RosterFunction,
+    SensorEntry,
+    SignalEntry,
+    RouteEntry,
+    SequenceEntry,
+    AliasEntry,
+} from '../utils/myAutomationParser'
 import {
     serializeRosterToFile,
     serializeTurnoutToFile,
     parseRosterFromFile,
     parseTurnoutFromFile,
     buildGeneratorHeader,
+    parseSensorsFromFile,
+    serializeSensorsToFile,
+    parseSignalsFromFile,
+    serializeSignalsToFile,
+    parseRoutesFromFile,
+    serializeRoutesToFile,
+    parseSequencesFromFile,
+    serializeSequencesToFile,
+    parseAliasesFromFile,
+    serializeAliasesToFile,
 } from '../utils/myAutomationParser'
 
 /**
@@ -224,11 +243,116 @@ export class ConfigEditorState {
         this._syncToInstallerState()
     }
 
+    // ── mySensors.h ───────────────────────────────────────────────────────
+    @observable sensors: SensorEntry[] = []
+
+    get sensorsRaw(): string {
+        const header = buildGeneratorHeader('mySensors.h', this.installerState.appVersion)
+        const serialized = serializeSensorsToFile(this.sensors)
+        return `${header}\n${serialized}`
+    }
+
+    setSensorsFromRaw(text: string): void {
+        try {
+            this.sensors = parseSensorsFromFile(text)
+            this.hasChanges = true
+        } catch {
+            // keep existing sensors if parse fails
+        }
+        this._syncToInstallerState()
+    }
+
+    // ── mySignals.h ───────────────────────────────────────────────────────
+    @observable signals: SignalEntry[] = []
+
+    get signalsRaw(): string {
+        const header = buildGeneratorHeader('mySignals.h', this.installerState.appVersion)
+        const serialized = serializeSignalsToFile(this.signals)
+        return `${header}\n${serialized}`
+    }
+
+    setSignalsFromRaw(text: string): void {
+        try {
+            this.signals = parseSignalsFromFile(text)
+            this.hasChanges = true
+        } catch {
+            // keep existing signals if parse fails
+        }
+        this._syncToInstallerState()
+    }
+
+    // ── myRoutes.h ────────────────────────────────────────────────────────
+    @observable routes: RouteEntry[] = []
+
+    get routesRaw(): string {
+        const header = buildGeneratorHeader('myRoutes.h', this.installerState.appVersion)
+        const serialized = serializeRoutesToFile(this.routes)
+        return `${header}\n${serialized}`
+    }
+
+    setRoutesFromRaw(text: string): void {
+        try {
+            this.routes = parseRoutesFromFile(text)
+            this.hasChanges = true
+        } catch {
+            // keep existing routes if parse fails
+        }
+        this._syncToInstallerState()
+    }
+
+    // ── mySequences.h ─────────────────────────────────────────────────────
+    @observable sequences: SequenceEntry[] = []
+
+    get sequencesRaw(): string {
+        const header = buildGeneratorHeader('mySequences.h', this.installerState.appVersion)
+        const serialized = serializeSequencesToFile(this.sequences)
+        return `${header}\n${serialized}`
+    }
+
+    setSequencesFromRaw(text: string): void {
+        try {
+            this.sequences = parseSequencesFromFile(text)
+            this.hasChanges = true
+        } catch {
+            // keep existing sequences if parse fails
+        }
+        this._syncToInstallerState()
+    }
+
+    // ── myAliases.h ───────────────────────────────────────────────────────
+    @observable aliases: AliasEntry[] = []
+
+    get aliasesRaw(): string {
+        const header = buildGeneratorHeader('myAliases.h', this.installerState.appVersion)
+        const serialized = serializeAliasesToFile(this.aliases)
+        return `${header}\n${serialized}`
+    }
+
+    setAliasesFromRaw(text: string): void {
+        try {
+            this.aliases = parseAliasesFromFile(text)
+            this.hasChanges = true
+        } catch {
+            // keep existing aliases if parse fails
+        }
+        this._syncToInstallerState()
+    }
+
     // ── Preserved content (non-ROSTER/TURNOUT lines from imported myAutomation.h)
     preservedAutomationContent = ''
 
     /** Names of the four built-in managed files — never auto-included */
-    private static readonly BUILTIN = new Set(['config.h', 'myRoster.h', 'myTurnouts.h', 'myAutomation.h'])
+    private static readonly BUILTIN = new Set([
+        'config.h',
+        'myRoster.h',
+        'myTurnouts.h',
+        'mySignals.h',
+        'mySensors.h',
+        'myRoutes.h',
+        'mySequences.h',
+        'myAliases.h',
+        'myAutomation.h',
+    ])
 
     /** Returns true if this filename was created by the user (not a built-in) */
     isCustomFile(name: string): boolean {
@@ -247,6 +371,17 @@ export class ConfigEditorState {
         const includes: string[] = []
         if (this.roster.length > 0) includes.push('#include "myRoster.h"')
         if (this.turnouts.length > 0) includes.push('#include "myTurnouts.h"')
+        // Built-in managed files (besides roster/turnouts) should be included
+        // when they contain any non-comment user content.
+        const hasUserContent = (name: string): boolean => {
+            const f = this.installerState.configFiles.find(cf => cf.name === name)
+            if (!f) return false
+            return f.content.split('\n').some(l => l.trim() && !l.trim().startsWith('//'))
+        }
+        for (const name of ['mySignals.h', 'mySensors.h', 'myRoutes.h', 'mySequences.h', 'myAliases.h']) {
+            if (hasUserContent(name)) includes.push(`#include "${name}"`)
+        }
+
         for (const name of this.customFileNames) {
             includes.push(`#include "${name}"`)
         }
@@ -318,6 +453,21 @@ export class ConfigEditorState {
         if (!names.includes('myTurnouts.h')) {
             files.push({ name: 'myTurnouts.h', content: this.turnoutsRaw })
         }
+        if (!names.includes('mySignals.h')) {
+            files.push({ name: 'mySignals.h', content: buildGeneratorHeader('mySignals.h', this.installerState.appVersion) + '\n' })
+        }
+        if (!names.includes('mySensors.h')) {
+            files.push({ name: 'mySensors.h', content: buildGeneratorHeader('mySensors.h', this.installerState.appVersion) + '\n' })
+        }
+        if (!names.includes('myRoutes.h')) {
+            files.push({ name: 'myRoutes.h', content: buildGeneratorHeader('myRoutes.h', this.installerState.appVersion) + '\n' })
+        }
+        if (!names.includes('mySequences.h')) {
+            files.push({ name: 'mySequences.h', content: buildGeneratorHeader('mySequences.h', this.installerState.appVersion) + '\n' })
+        }
+        if (!names.includes('myAliases.h')) {
+            files.push({ name: 'myAliases.h', content: buildGeneratorHeader('myAliases.h', this.installerState.appVersion) + '\n' })
+        }
         if (!names.includes('myAutomation.h')) {
             files.push({ name: 'myAutomation.h', content: this.automationPreview })
         }
@@ -332,18 +482,38 @@ export class ConfigEditorState {
                 f.content = this.rosterRaw
             } else if (f.name === 'myTurnouts.h') {
                 f.content = this.turnoutsRaw
+            } else if (f.name === 'mySensors.h') {
+                f.content = this.sensorsRaw
+            } else if (f.name === 'mySignals.h') {
+                f.content = this.signalsRaw
+            } else if (f.name === 'myRoutes.h') {
+                f.content = this.routesRaw
+            } else if (f.name === 'mySequences.h') {
+                f.content = this.sequencesRaw
+            } else if (f.name === 'myAliases.h') {
+                f.content = this.aliasesRaw
             }
             // myAutomation.h is handled by _ensureAutomationFile below,
             // which first re-extracts user edits from the current editor content.
         }
-        // Ensure myAutomation.h exists in configFiles if roster/turnouts populated
+        // Ensure myAutomation.h exists in configFiles if any managed content present
         this._ensureAutomationFile()
     }
 
     private _ensureAutomationFile(): void {
         const files = this.installerState.configFiles
         const hasAutomation = files.some(f => f.name === 'myAutomation.h')
-        const needsIt = this.roster.length > 0 || this.turnouts.length > 0 || this.customFileNames.length > 0
+        const hasBuiltInContent = (name: string) =>
+            this.installerState.configFiles.some(f => f.name === name && f.content.split('\n').some(l => l.trim() && !l.trim().startsWith('//')))
+        const needsIt =
+            this.roster.length > 0 ||
+            this.turnouts.length > 0 ||
+            this.customFileNames.length > 0 ||
+            hasBuiltInContent('mySignals.h') ||
+            hasBuiltInContent('mySensors.h') ||
+            hasBuiltInContent('myRoutes.h') ||
+            hasBuiltInContent('mySequences.h') ||
+            hasBuiltInContent('myAliases.h')
         if (!hasAutomation && needsIt) {
             files.push({ name: 'myAutomation.h', content: this.automationPreview })
         } else if (hasAutomation) {
