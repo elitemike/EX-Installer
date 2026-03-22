@@ -55,7 +55,8 @@ describe('baseDir', () => {
 
     it('is under the mocked home directory', () => {
         const svc = makeService()
-        expect(svc.baseDir).toContain('/mock/home')
+        const normalized = svc.baseDir.replace(/\\/g, '/')
+        expect(normalized).toContain('/mock/home')
     })
 })
 
