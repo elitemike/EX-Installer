@@ -64,6 +64,8 @@ export class Home {
         const folder = await this.files.selectDirectory()
         if (!folder) return
 
+        console.debug('[loadFromFolder] selected folder:', folder)
+
         // List all files in the selected directory
         const entries = await this.files.listDir(folder)
         const hFiles = entries.filter(e => HEADER_EXTENSIONS.some(ext => e.endsWith(ext)))
@@ -90,10 +92,14 @@ export class Home {
             }
         }
 
+        console.debug('[loadFromFolder] found header files:', hFiles)
+
         // ── Device resolution ─────────────────────────────────────────────────
         // Check if config.h already contains a device header from a previous load.
         const configHFile = configFiles.find(f => f.name === 'config.h')!
         let device: ArduinoCliBoardInfo | null = parseDeviceFromHeader(configHFile.content)
+
+        console.debug('[loadFromFolder] parsed device from header:', device)
 
         if (device) {
             // Board identity is known — silently reconcile the port in case the OS
@@ -106,8 +112,10 @@ export class Home {
                     configHFile.content = injectDeviceHeader(configHFile.content, reconciled)
                 }
                 device = reconciled
+                console.debug('[loadFromFolder] reconciled device:', device, 'portChanged=', portChanged)
             } catch {
                 // CLI not available (e.g. not installed yet) — fall back to stored port
+                console.debug('[loadFromFolder] CLI listBoards failed; falling back to stored device')
             }
         } else {
             // No saved device in config.h — show the board picker so the user can
@@ -125,9 +133,25 @@ export class Home {
             device = (result as any).value as ArduinoCliBoardInfo | null
 
             if (device) {
+                // If the picker returned a board without an FQBN (some platforms
+                // or mock setups may omit it), try to enrich the selection by
+                // re-querying the live board list and matching on port/serial.
+                if (!device.fqbn) {
+                    try {
+                        const live = await this.cli.listBoards()
+                        const matched = live.find(b => b.port === device!.port || (b.serialNumber && b.serialNumber === (device as any).serialNumber))
+                        if (matched && matched.fqbn) {
+                            console.debug('[loadFromFolder] enriched picked device fqbn from live scan:', matched.fqbn)
+                            device.fqbn = matched.fqbn
+                        }
+                    } catch {
+                        console.debug('[loadFromFolder] failed to enrich picked device fqbn')
+                    }
+                }
                 // Embed device info as human-readable comments at the top of config.h.
                 // On next open the header is parsed and the wizard is skipped.
                 configHFile.content = injectDeviceHeader(configHFile.content, device)
+                console.debug('[loadFromFolder] device picked by user:', device)
             }
         }
 
@@ -138,14 +162,19 @@ export class Home {
             protocol: 'serial',
         }
 
+        console.debug('[loadFromFolder] selectedDevice final:', selectedDevice)
+
         // ── Sketch path resolution ────────────────────────────────────────────
         const { scratchPath, repoPath, productKey, sourceFolder } =
             await this.resolveSketchPath(folder, configFiles.map(f => f.name), entries)
+
+        console.debug('[loadFromFolder] resolveSketchPath ->', { scratchPath, repoPath, productKey, sourceFolder })
 
         // Write user config files into the internal scratch directory so the
         // compiler can find them alongside the copied .ino and .cpp source files.
         if (sourceFolder) {
             for (const f of configFiles) {
+                console.debug('[loadFromFolder] writing user config to scratch:', `${scratchPath}/${f.name}`)
                 await this.files.writeFile(`${scratchPath}/${f.name}`, f.content)
             }
         }

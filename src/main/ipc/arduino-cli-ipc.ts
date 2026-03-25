@@ -71,9 +71,10 @@ export function registerArduinoCliIpcHandlers(arduinoCliService: ArduinoCliServi
     })
 
     ipcMain.handle('arduino-cli:compile', async (_event, sketchPath: string, fqbn: string) => {
+        console.debug('[ipc] compile request', { sketchPath, fqbn, IS_MOCK_COMPILE })
         if (IS_MOCK_COMPILE) {
             await new Promise(r => setTimeout(r, 800))
-            return {
+            const mockResult = {
                 success: true,
                 output: [
                     `Compiling for ${fqbn} (mock)...`,
@@ -81,19 +82,28 @@ export function registerArduinoCliIpcHandlers(arduinoCliService: ArduinoCliServi
                     `Global variables use 2300 bytes (28%) of dynamic memory, leaving 5892 bytes for local variables.`,
                 ].join('\n'),
             }
+            console.debug('[ipc] compile mock result', mockResult)
+            return mockResult
         }
-        return arduinoCliService.compile(sketchPath, fqbn)
+        const result = await arduinoCliService.compile(sketchPath, fqbn)
+        console.debug('[ipc] compile result', result)
+        return result
     })
 
     ipcMain.handle('arduino-cli:upload', async (_event, sketchPath: string, fqbn: string, port: string) => {
+        console.debug('[ipc] upload request', { sketchPath, fqbn, port, IS_MOCK_COMPILE })
         if (IS_MOCK_COMPILE) {
             await new Promise(r => setTimeout(r, 600))
-            return {
+            const mockResult = {
                 success: true,
                 output: `Uploading to ${port} for ${fqbn} (mock)...\nFlash written successfully.`,
             }
+            console.debug('[ipc] upload mock result', mockResult)
+            return mockResult
         }
-        return arduinoCliService.upload(sketchPath, fqbn, port)
+        const result = await arduinoCliService.upload(sketchPath, fqbn, port)
+        console.debug('[ipc] upload result', result)
+        return result
     })
 
     ipcMain.handle('arduino-cli:init-config', async () => {

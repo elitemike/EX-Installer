@@ -12,6 +12,7 @@ import { ConfigService } from '../services/config.service'
 import { DeviceWizard } from '../components/device-wizard'
 import { productDetails } from '../models/product-details'
 import type { SavedConfiguration } from '../models/saved-configuration'
+import { parseDeviceFromHeader } from '../utils/configHeaderParser'
 
 export class Workspace {
     private readonly router = resolve(Router)
@@ -239,8 +240,48 @@ export class Workspace {
             await this.saveFiles()
             this.progressPercent = 20
 
-            const fqbn = device.fqbn
-            if (!fqbn) {
+            // Validate FQBN and attempt recovery from header or live scan when
+            // the stored value is missing or looks invalid. This prevents
+            // accidental comment lines (e.g. "//   Protocol: serial") from
+            // being passed to the Arduino CLI.
+            const looksLikeFqbn = (s?: string) => !!s && s.includes(':') && !s.trim().startsWith('//')
+
+            let fqbn = device.fqbn
+            console.debug('[workspace.compile] scratchPath=', this.state.scratchPath, 'device.fqbn=', fqbn, 'device=', device)
+
+            if (!looksLikeFqbn(fqbn)) {
+                // Try to recover from the injected header in config.h
+                try {
+                    if (this.state.scratchPath) {
+                        const headerText = await this.files.readFile(`${this.state.scratchPath}/config.h`)
+                        const parsed = parseDeviceFromHeader(headerText)
+                        if (parsed && looksLikeFqbn(parsed.fqbn)) {
+                            fqbn = parsed.fqbn
+                            device.fqbn = fqbn
+                            console.debug('[workspace.compile] recovered fqbn from config.h header:', fqbn)
+                        }
+                    }
+                } catch (e) {
+                    console.debug('[workspace.compile] failed to read/parse config.h for fqbn recovery')
+                }
+            }
+
+            if (!looksLikeFqbn(fqbn)) {
+                // As a final attempt, scan live boards and match by port/name/serial
+                try {
+                    const boards = await this.cli.listBoards()
+                    const match = boards.find(b => b.port === device.port || b.name === device.name || (b.serialNumber && (device as any).serialNumber && b.serialNumber === (device as any).serialNumber))
+                    if (match && looksLikeFqbn(match.fqbn)) {
+                        fqbn = match.fqbn
+                        device.fqbn = fqbn
+                        console.debug('[workspace.compile] recovered fqbn from live board scan:', fqbn)
+                    }
+                } catch {
+                    console.debug('[workspace.compile] live board scan failed while recovering fqbn')
+                }
+            }
+
+            if (!looksLikeFqbn(fqbn)) {
                 throw new Error(`Board "${device.name}" has no FQBN — install Arduino CLI and rescan to identify it.`)
             }
 

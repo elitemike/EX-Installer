@@ -44,12 +44,19 @@ export function buildDeviceHeader(device: ArduinoCliBoardInfo): string {
  * Returns `null` when no block is present or required fields are missing.
  */
 export function parseDeviceFromHeader(text: string): ArduinoCliBoardInfo | null {
-    if (!text.includes(DEVICE_HEADER_TAG)) return null
+    const firstIdx = text.indexOf(DEVICE_HEADER_TAG)
+    if (firstIdx === -1) return null
+    const secondIdx = text.indexOf(DEVICE_HEADER_TAG, firstIdx + DEVICE_HEADER_TAG.length)
+    if (secondIdx === -1) return null
 
-    const nameMatch = /^\/\/\s{3}Name:\s+(.+)$/m.exec(text)
-    const portMatch = /^\/\/\s{3}Port:\s+(.+)$/m.exec(text)
-    const fqbnMatch = /^\/\/\s{3}FQBN:\s+(.+)$/m.exec(text)
-    const protocolMatch = /^\/\/\s{3}Protocol:\s+(.+)$/m.exec(text)
+    // Restrict parsing to only the header block to avoid accidental matches
+    const headerBlock = text.slice(firstIdx, secondIdx + DEVICE_HEADER_TAG.length)
+
+    // Be permissive about whitespace so different editors / platforms don't break parsing
+    const nameMatch = /^\/\/\s*Name:\s*(.+)$/m.exec(headerBlock)
+    const portMatch = /^\/\/\s*Port:\s*(.+)$/m.exec(headerBlock)
+    const fqbnMatch = /^\/\/\s*FQBN:\s*(.+)$/m.exec(headerBlock)
+    const protocolMatch = /^\/\/\s*Protocol:\s*(.+)$/m.exec(headerBlock)
 
     if (!nameMatch || !portMatch || !fqbnMatch) return null
 

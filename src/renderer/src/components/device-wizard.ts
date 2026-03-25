@@ -8,6 +8,9 @@ import { GitService } from '../services/git.service'
 import { FileService } from '../services/file.service'
 import { PreferencesService } from '../services/preferences.service'
 import { ConfigService } from '../services/config.service'
+import { resolve } from 'aurelia'
+import { IDialogService } from '@aurelia/dialog'
+import { DevicePickerDialog } from './device-picker-dialog'
 import { productDetails, extractVersionDetails } from '../models/product-details'
 import type { ArduinoCliBoardInfo } from '../../../types/ipc'
 import type { SavedConfiguration } from '../models/saved-configuration'
@@ -47,6 +50,7 @@ export class DeviceWizard {
     private readonly files = resolve(FileService)
     private readonly preferences = resolve(PreferencesService)
     private readonly config = resolve(ConfigService)
+    private readonly dialogService = resolve(IDialogService)
 
     // ── Wizard step (0–3) ────────────────────────────────────────────────────
     step = 0
@@ -256,6 +260,34 @@ export class DeviceWizard {
         this.finishing = true
         this.finishError = null
         try {
+            // If the selected board lacks an FQBN, attempt to enrich it from
+            // a live Arduino CLI scan. If enrichment fails, prompt the user to
+            // pick the correct board type so the saved configuration includes
+            // a valid FQBN.
+            if (this.selectedBoard && !this.selectedBoard.fqbn) {
+                try {
+                    const cliBoards = await this.cli.listBoards()
+                    const match = cliBoards.find(b => b.port === this.selectedBoard!.port || (b.serialNumber && b.serialNumber === this.selectedBoard!.serialNumber))
+                    if (match && match.fqbn) {
+                        this.selectedBoard.fqbn = match.fqbn
+                    }
+                } catch {
+                    // ignore
+                }
+
+                if (!this.selectedBoard.fqbn) {
+                    // Ask the user to pick a board type from a live scan so we
+                    // can capture its FQBN. This dialog lists detected boards
+                    // and will usually include the same port with a populated
+                    // `fqbn` if the CLI recognises it.
+                    const result = await this.dialogService.open({ component: () => DevicePickerDialog }).whenClosed((r) => r)
+                    if ((result as any).status === 'ok' && (result as any).value) {
+                        this.selectedBoard = (result as any).value as ArduinoCliBoardInfo
+                    } else {
+                        throw new Error('Board type is required to continue.');
+                    }
+                }
+            }
             const product = productDetails[this.selectedProduct ?? '']
             if (!product || !this.selectedBoard || !this.selectedVersion) {
                 throw new Error('Incomplete selection — cannot finish.')
@@ -363,12 +395,14 @@ export class DeviceWizard {
                     }
                 }
                 configFiles.push({ name: fileName, content })
+                console.debug('[device-wizard] writing starter config to scratch:', `${scratchPath}/${fileName}`)
                 await this.files.writeFile(`${scratchPath}/${fileName}`, content)
             }
             // Restore other tracked user files (myAutomation, etc.)
             for (const [name, content] of savedUserFiles) {
                 if (!product.minimumConfigFiles.includes(name)) {
                     configFiles.push({ name, content })
+                    console.debug('[device-wizard] restoring user file to scratch:', `${scratchPath}/${name}`)
                     await this.files.writeFile(`${scratchPath}/${name}`, content)
                 }
             }
