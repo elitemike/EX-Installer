@@ -244,6 +244,22 @@ test.describe('Roster Editor', () => {
         await expect(page.locator('div.monaco-editor')).toContainText('Gordon the Big Engine')
     })
 
+    test('preserves empty function tokens across visual round-trip', async ({ workspacePage: page }) => {
+        await openRosterEditor(page)
+        await switchToRaw(page)
+
+        const line = 'ROSTER(611, "N&W #611", "Headlight/Bell/Whistle/*Short Whistle/Steam Release///Dimmer/Mute")'
+        await setMonacoContent(page, line)
+
+        // Switch to visual (parses) then back to raw (serializes) and ensure
+        // the empty tokens (///) and trailing 'Mute' are preserved.
+        await switchToVisual(page)
+        await switchToRaw(page)
+        const content = await getMonacoContent(page)
+        expect(content).toContain('Steam Release///Dimmer/Mute')
+        expect(content).toContain('Mute')
+    })
+
     // ── Invalid lines: commenting + toast ────────────────────────────────────
 
     test('invalid ROSTER line is commented out when switching to visual', async ({ workspacePage: page }) => {

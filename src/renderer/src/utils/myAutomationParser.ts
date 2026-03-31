@@ -340,22 +340,31 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
             if (macroMatch) {
                 functionMacro = macroMatch[1];
                 const baseFunctions = macroMap[functionMacro] || '';
-                let allFunctionsString = baseFunctions;
 
                 // If there's an appended suffix, concatenate it (C preprocessor behavior)
+                let allParts: string[] = []
+                const baseParts = baseFunctions === '' ? [] : baseFunctions.split('/')
                 if (macroMatch[2]) {
-                    const suffix = macroMatch[2];
-                    // The suffix already includes the leading slash from the quoted string (e.g., "/BRAKE")
-                    // so we just concatenate without adding another slash
-                    allFunctionsString = baseFunctions + suffix;
-                    // Store the appended part separately (filter out empty names from leading/trailing slashes)
-                    appendedFunctions = suffix.split('/').filter(s => s).map(parseFunction);
+                    const suffix = macroMatch[2]
+                    // Suffix text typically starts with a leading slash ("/EXTRA").
+                    // Remove a single leading slash to avoid producing an initial empty
+                    // token, but preserve interior empty tokens ("///").
+                    const normalizedSuffix = suffix.startsWith('/') ? suffix.slice(1) : suffix
+                    const suffixParts = normalizedSuffix.split('/')
+                    allParts = baseParts.concat(suffixParts)
+
+                    // appendedFunctions should reflect only the suffix portion (after
+                    // removing the leading slash). Preserve empty tokens within the
+                    // suffix so alignment is maintained.
+                    appendedFunctions = suffixParts.map(parseFunction)
+                } else {
+                    allParts = baseParts
                 }
 
                 entries.push({
                     dccAddress,
                     name,
-                    functions: allFunctionsString.split('/').filter(s => s).map(parseFunction),
+                    functions: allParts.map(parseFunction),
                     comment,
                     functionMacro,
                     defineFriendlyName: functionMacro ? friendlyNameMap[functionMacro] : undefined,
@@ -368,7 +377,9 @@ export function parseRosterFromFile(fileContent: string): Roster[] {
             entries.push({
                 dccAddress,
                 name,
-                functions: functionsString.split('/').filter(s => s).map(parseFunction),
+                // Preserve empty tokens ("//", "///") so function indexes remain
+                // aligned with their slash positions.
+                functions: functionsString.split('/').map(parseFunction),
                 comment,
                 functionMacro: undefined,
                 defineFriendlyName: undefined,

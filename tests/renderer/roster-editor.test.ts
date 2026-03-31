@@ -510,3 +510,21 @@ describe('serializeRosterToFile — appended functions', () => {
         expect(output).toContain('ROSTER(2, "B", COMMON)')
     })
 })
+
+describe('parseRosterFromFile — preserve empty function tokens', () => {
+    it('preserves empty tokens so trailing functions line up (Mute → F8)', () => {
+        const text = 'ROSTER(611, "N&W #611", "Headlight/Bell/Whistle/*Short Whistle/Steam Release///Dimmer/Mute")'
+        const roster = parseRosterFromFile(text)
+        expect(roster).toHaveLength(1)
+        const fns = roster[0].functions
+        // Expect every slash to correspond to a function slot — there are 9 tokens
+        expect(fns).toHaveLength(9)
+        // Check a few specific positions
+        expect(fns[3].isMomentary).toBe(true) // *Short Whistle
+        expect(fns[4].name).toBe('Steam Release')
+        expect(fns[5].noFunction).toBe(true)
+        expect(fns[6].noFunction).toBe(true)
+        expect(fns[7].name).toBe('Dimmer')
+        expect(fns[8].name).toBe('Mute')
+    })
+})
