@@ -13,10 +13,30 @@ export interface CommandStationConfigOptions {
     wifiSsid: string
     wifiPassword: string
     wifiChannel: number
+    // Track manager configuration
+    hasStackedMotorShield: boolean // For CSB1 only
+    trackManagerMode: 'mixed' | 'dcc-only' | 'dc-only'
+    // Track A
     trackAMode: string
-    trackBMode: string
+    trackAType: 'dcc' | 'dc'
     trackALocoId: number
+    // Track B
+    trackBMode: string
+    trackBType: 'dcc' | 'dc'
     trackBLocoId: number
+    // Track C (only available with stacked motor shield)
+    trackCMode: string
+    trackCType: 'dcc' | 'dc'
+    trackCLocoId: number
+    // Track D (only available with stacked motor shield)
+    trackDMode: string
+    trackDType: 'dcc' | 'dc'
+    trackDLocoId: number
+    startupPowerMode: 'all' | 'individual'
+    trackAPower: 'ON' | 'OFF'
+    trackBPower: 'ON' | 'OFF'
+    trackCPower: 'ON' | 'OFF'
+    trackDPower: 'ON' | 'OFF'
     enablePowerOnStart: boolean
     disableEeprom: boolean
     enableEthernet: boolean
@@ -34,10 +54,25 @@ export function defaultCommandStationConfig(): CommandStationConfigOptions {
         wifiSsid: '',
         wifiPassword: '',
         wifiChannel: 1,
+        hasStackedMotorShield: false,
+        trackManagerMode: 'dcc-only',
         trackAMode: 'MAIN',
-        trackBMode: 'PROG',
+        trackAType: 'dcc',
         trackALocoId: 0,
+        trackBMode: 'PROG',
+        trackBType: 'dcc',
         trackBLocoId: 0,
+        trackCMode: 'MAIN',
+        trackCType: 'dcc',
+        trackCLocoId: 0,
+        trackDMode: 'MAIN',
+        trackDType: 'dcc',
+        trackDLocoId: 0,
+        startupPowerMode: 'all',
+        trackAPower: 'ON',
+        trackBPower: 'ON',
+        trackCPower: 'ON',
+        trackDPower: 'ON',
         enablePowerOnStart: false,
         disableEeprom: false,
         enableEthernet: false,
@@ -123,6 +158,81 @@ export function generateCommandStationConfig(opts: CommandStationConfigOptions):
 }
 
 /**
+ * Determine if a track mode is DC-type or DCC-type
+ */
+function isTrackModeDC(mode: string): boolean {
+    return mode.startsWith('DC')
+}
+
+/**
+ * Parse myAutomation.h AUTOSTART section to extract track manager options.
+ * Returns a partial MyAutomationOptions object with extracted values.
+ */
+export function parseMyAutomationTrackManager(content: string): Partial<MyAutomationOptions> {
+    const opts: Partial<MyAutomationOptions> = {}
+
+    // Find AUTOSTART...DONE block
+    const autoStartMatch = content.match(/AUTOSTART\s*\n([\s\S]*?)\nDONE/m)
+    if (!autoStartMatch) return opts
+
+    const autoStartBlock = autoStartMatch[1]
+
+    // Extract SET_TRACK calls for each track
+    const setTrackPattern = /SET_TRACK\(([A-D]),(\w+)\)/g
+    let match: RegExpExecArray | null
+    while ((match = setTrackPattern.exec(autoStartBlock)) !== null) {
+        const track = match[1]
+        const mode = match[2]
+        if (track === 'A') opts.trackAMode = mode
+        else if (track === 'B') opts.trackBMode = mode
+        else if (track === 'C') opts.trackCMode = mode
+        else if (track === 'D') opts.trackDMode = mode
+    }
+
+    // Extract SETLOCO loco IDs for each track
+    const setLocoPattern = /SETLOCO\((\d+)\)\s+SET_TRACK\(([A-D]),\w+\)/g
+    while ((match = setLocoPattern.exec(autoStartBlock)) !== null) {
+        const locoId = parseInt(match[1], 10)
+        const track = match[2]
+        if (track === 'A') opts.trackALocoId = locoId
+        else if (track === 'B') opts.trackBLocoId = locoId
+        else if (track === 'C') opts.trackCLocoId = locoId
+        else if (track === 'D') opts.trackDLocoId = locoId
+    }
+
+    // Check for stacked motor shield (presence of Track C or D)
+    if (opts.trackCMode || opts.trackDMode) {
+        opts.hasStackedMotorShield = true
+    }
+
+    // Check for power on start
+    if (/POWERON/m.test(autoStartBlock)) {
+        opts.enablePowerOnStart = true
+        opts.startupPowerMode = 'all'
+    }
+
+    // Parse per-track power settings
+    const setPowerPattern = /SET_POWER\(([A-D]),(ON|OFF)\)/g
+    let hasIndividualPower = false
+    while ((match = setPowerPattern.exec(autoStartBlock)) !== null) {
+        hasIndividualPower = true
+        const track = match[1]
+        const power = match[2] as 'ON' | 'OFF'
+        if (track === 'A') opts.trackAPower = power
+        else if (track === 'B') opts.trackBPower = power
+        else if (track === 'C') opts.trackCPower = power
+        else if (track === 'D') opts.trackDPower = power
+    }
+
+    if (hasIndividualPower) {
+        opts.enablePowerOnStart = true
+        opts.startupPowerMode = 'individual'
+    }
+
+    return opts
+}
+
+/**
  * Parse an existing config.h back into CommandStationConfigOptions.
  * Returns defaults for any unrecognised or missing values.
  */
@@ -185,15 +295,31 @@ export function parseCommandStationConfig(content: string): CommandStationConfig
     const channel = def('WIFI_CHANNEL')
     if (channel) opts.wifiChannel = parseInt(channel, 10) || 1
 
+    // Infer track types from modes
+    opts.trackAType = isTrackModeDC(opts.trackAMode) ? 'dc' : 'dcc'
+    opts.trackBType = isTrackModeDC(opts.trackBMode) ? 'dc' : 'dcc'
+    opts.trackCType = isTrackModeDC(opts.trackCMode) ? 'dc' : 'dcc'
+    opts.trackDType = isTrackModeDC(opts.trackDMode) ? 'dc' : 'dcc'
+
     return opts
 }
 
 export interface MyAutomationOptions {
     enablePowerOnStart: boolean
+    hasStackedMotorShield: boolean
+    startupPowerMode: 'all' | 'individual'
     trackAMode: string
-    trackBMode: string
     trackALocoId: number
+    trackAPower: 'ON' | 'OFF'
+    trackBMode: string
     trackBLocoId: number
+    trackBPower: 'ON' | 'OFF'
+    trackCMode: string
+    trackCLocoId: number
+    trackCPower: 'ON' | 'OFF'
+    trackDMode: string
+    trackDLocoId: number
+    trackDPower: 'ON' | 'OFF'
 }
 
 /**
@@ -205,15 +331,18 @@ export function generateMyAutomation(opts: MyAutomationOptions): string {
         '',
     ]
 
-    const hasTrackManager = opts.trackAMode !== 'MAIN' || opts.trackBMode !== 'PROG'
+    // When stacked shield is enabled we must always emit SET_TRACK lines,
+    // because CSB1 defaults only initialize tracks A/B.
+    const hasTrackManager =
+        opts.hasStackedMotorShield ||
+        opts.trackAMode !== 'MAIN' ||
+        opts.trackBMode !== 'PROG' ||
+        (opts.hasStackedMotorShield && (opts.trackCMode !== 'MAIN' || opts.trackDMode !== 'MAIN'))
+
     const needsAutostart = opts.enablePowerOnStart || hasTrackManager
 
     if (needsAutostart) {
         lines.push('AUTOSTART')
-
-        if (opts.enablePowerOnStart) {
-            lines.push('POWERON')
-        }
 
         if (hasTrackManager) {
             if (opts.trackAMode.startsWith('DC')) {
@@ -227,6 +356,33 @@ export function generateMyAutomation(opts: MyAutomationOptions): string {
             } else {
                 lines.push(`SET_TRACK(B,${opts.trackBMode})`)
             }
+
+            if (opts.hasStackedMotorShield) {
+                if (opts.trackCMode.startsWith('DC')) {
+                    lines.push(`SETLOCO(${opts.trackCLocoId}) SET_TRACK(C,${opts.trackCMode})`)
+                } else {
+                    lines.push(`SET_TRACK(C,${opts.trackCMode})`)
+                }
+
+                if (opts.trackDMode.startsWith('DC')) {
+                    lines.push(`SETLOCO(${opts.trackDLocoId}) SET_TRACK(D,${opts.trackDMode})`)
+                } else {
+                    lines.push(`SET_TRACK(D,${opts.trackDMode})`)
+                }
+            }
+        }
+
+        if (opts.enablePowerOnStart) {
+            if (opts.startupPowerMode === 'all') {
+                lines.push('POWERON')
+            } else {
+                lines.push(`SET_POWER(A,${opts.trackAPower})`)
+                lines.push(`SET_POWER(B,${opts.trackBPower})`)
+                if (opts.hasStackedMotorShield) {
+                    lines.push(`SET_POWER(C,${opts.trackCPower})`)
+                    lines.push(`SET_POWER(D,${opts.trackDPower})`)
+                }
+            }
         }
 
         lines.push('DONE')
@@ -238,6 +394,14 @@ export function generateMyAutomation(opts: MyAutomationOptions): string {
             }
             if (opts.trackBMode.startsWith('DC')) {
                 lines.push(`ROSTER(${opts.trackBLocoId},"DC TRACK B","/* /")`)
+            }
+            if (opts.hasStackedMotorShield) {
+                if (opts.trackCMode.startsWith('DC')) {
+                    lines.push(`ROSTER(${opts.trackCLocoId},"DC TRACK C","/* /")`)
+                }
+                if (opts.trackDMode.startsWith('DC')) {
+                    lines.push(`ROSTER(${opts.trackDLocoId},"DC TRACK D","/* /")`)
+                }
             }
         }
     }

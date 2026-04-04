@@ -60,7 +60,13 @@ export class FileEditorPanelCustomElement {
         }
     }
 
-    get automationPreview(): string {
-        return this.state.automationPreview
+    get automationContent(): string {
+        return this.activeFile?.content ?? this.state.automationPreview
+    }
+
+    set automationContent(val: string) {
+        if (this.activeFile) {
+            this.activeFile.content = val
+        }
     }
 }

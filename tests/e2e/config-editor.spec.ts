@@ -151,6 +151,32 @@ test.describe('Config Editor — EX-CommandStation', () => {
         expect(count).toBeGreaterThanOrEqual(2)
     })
 
+    test('TrackManager tab shows Startup power section', async ({ workspacePage }) => {
+        await openDeviceSettings(workspacePage)
+
+        await workspacePage
+            .locator('commandstation-config-form')
+            .getByRole('button', { name: 'TrackManager' })
+            .click()
+
+        await expect(
+            workspacePage.locator('commandstation-config-form').getByText('Startup power'),
+        ).toBeVisible()
+    })
+
+    test('TrackManager tab shows Track Configuration section', async ({ workspacePage }) => {
+        await openDeviceSettings(workspacePage)
+
+        await workspacePage
+            .locator('commandstation-config-form')
+            .getByRole('button', { name: 'TrackManager' })
+            .click()
+
+        await expect(
+            workspacePage.locator('commandstation-config-form').getByText('Track Configuration'),
+        ).toBeVisible()
+    })
+
     test('switching to Raw tab shows Monaco editor', async ({ workspacePage }) => {
         await openDeviceSettings(workspacePage)
         await switchToRaw(workspacePage)
@@ -169,6 +195,48 @@ test.describe('Config Editor — EX-CommandStation', () => {
 
         await switchToVisual(workspacePage)
         await expect(workspacePage.locator('commandstation-config-form')).toBeVisible()
+    })
+})
+
+// ── Automation Editor (myAutomation.h) ───────────────────────────────────────
+
+test.describe('Automation Editor — myAutomation.h', () => {
+    test('Automation tab is present in the sidebar', async ({ workspacePage }) => {
+        await expect(workspacePage.getByText('Automation', { exact: true }).first()).toBeVisible()
+    })
+
+    test('clicking Automation shows the myAutomation.h Monaco editor', async ({ workspacePage }) => {
+        await workspacePage.getByText('Automation', { exact: true }).first().click()
+
+        // file-editor-panel renders a Monaco editor for automation view
+        await expect(workspacePage.locator('file-editor-panel div.monaco-editor')).toBeVisible()
+    })
+
+    test('myAutomation.h editor shows Editable badge (not read-only)', async ({ workspacePage }) => {
+        await workspacePage.getByText('Automation', { exact: true }).first().click()
+
+        await expect(
+            workspacePage.locator('file-editor-panel').getByText('Editable'),
+        ).toBeVisible()
+    })
+
+    test('myAutomation.h editor does not have the readonly attribute', async ({ workspacePage }) => {
+        await workspacePage.getByText('Automation', { exact: true }).first().click()
+        await workspacePage.locator('file-editor-panel div.monaco-editor').waitFor({ state: 'visible' })
+
+        // The Monaco container should NOT carry aria-readonly="true"
+        const isReadOnly = await workspacePage.locator('file-editor-panel div.monaco-editor').evaluate(
+            (el) => el.getAttribute('aria-readonly') === 'true'
+        )
+        expect(isReadOnly).toBe(false)
+    })
+
+    test('shows "Managed sections regenerate automatically" hint', async ({ workspacePage }) => {
+        await workspacePage.getByText('Automation', { exact: true }).first().click()
+
+        await expect(
+            workspacePage.locator('file-editor-panel').getByText('Managed sections regenerate automatically'),
+        ).toBeVisible()
     })
 })
 

@@ -25,6 +25,7 @@ import {
 import {
     extractAutomationCustomContent,
     MANAGED_INCLUDES_TAG,
+    MANAGED_TRACK_MANAGER_TAG,
 } from '../../src/renderer/src/models/config-editor-state'
 
 // ── hasGeneratorHeader ────────────────────────────────────────────────────────
@@ -468,5 +469,104 @@ describe('extractAutomationCustomContent', () => {
         )
         const second = extractAutomationCustomContent(first)
         expect(first).toBe(second)
+    })
+
+    // ── MANAGED_TRACK_MANAGER_TAG stripping ───────────────────────────────────
+
+    it('strips the managed TrackManager block entirely', () => {
+        const block = [
+            MANAGED_TRACK_MANAGER_TAG,
+            '// This TrackManager block is managed by EX-Installer.',
+            'AUTOSTART',
+            '  SET_TRACK(A,MAIN)',
+            'DONE',
+            MANAGED_TRACK_MANAGER_TAG,
+        ].join('\n')
+        expect(extractAutomationCustomContent(block)).toBe('')
+    })
+
+    it('preserves custom code outside the managed TrackManager block', () => {
+        const custom = 'SEQUENCE(99)\n  FWD(50)\nDONE'
+        const block = [
+            MANAGED_TRACK_MANAGER_TAG,
+            'AUTOSTART',
+            '  SET_TRACK(A,MAIN)',
+            'DONE',
+            MANAGED_TRACK_MANAGER_TAG,
+            '',
+            custom,
+        ].join('\n')
+        expect(extractAutomationCustomContent(block)).toBe(custom)
+    })
+
+    it('strips both includes and TrackManager blocks, preserving only custom code', () => {
+        const custom = 'SEQUENCE(100)\nDONE'
+        const block = [
+            MANAGED_INCLUDES_TAG,
+            '#include "myRoster.h"',
+            MANAGED_INCLUDES_TAG,
+            '',
+            MANAGED_TRACK_MANAGER_TAG,
+            'AUTOSTART',
+            '  SET_TRACK(A,MAIN)',
+            'DONE',
+            MANAGED_TRACK_MANAGER_TAG,
+            '',
+            custom,
+        ].join('\n')
+        expect(extractAutomationCustomContent(block)).toBe(custom)
+    })
+
+    it('is idempotent with TrackManager block: extracting twice gives same result', () => {
+        const custom = 'ALIAS(TRACK_A, 1)'
+        const first = extractAutomationCustomContent(
+            `${MANAGED_TRACK_MANAGER_TAG}\nAUTOSTART\n  SET_TRACK(A,MAIN)\nDONE\n${MANAGED_TRACK_MANAGER_TAG}\n${custom}`
+        )
+        const second = extractAutomationCustomContent(first)
+        expect(first).toBe(second)
+    })
+
+    // ── Legacy AUTOSTART block stripping (migration) ──────────────────────────
+
+    it('strips legacy AUTOSTART block containing SET_TRACK', () => {
+        const input = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  SET_TRACK(B,PROG)\nDONE\n'
+        expect(extractAutomationCustomContent(input)).toBe('')
+    })
+
+    it('strips legacy AUTOSTART block containing POWERON', () => {
+        const input = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  POWERON\nDONE\n'
+        expect(extractAutomationCustomContent(input)).toBe('')
+    })
+
+    it('strips legacy AUTOSTART block containing SET_POWER', () => {
+        const input = 'AUTOSTART\n  SET_POWER(A,ON)\n  SET_POWER(B,OFF)\nDONE\n'
+        expect(extractAutomationCustomContent(input)).toBe('')
+    })
+
+    it('preserves user AUTOSTART blocks that have no track commands', () => {
+        const input = 'AUTOSTART\n  FWD(50) DELAY(2000) STOP\nDONE'
+        expect(extractAutomationCustomContent(input)).toBe(input)
+    })
+
+    // ── Legacy DC ROSTER line stripping (migration) ───────────────────────────
+
+    it('strips legacy ROSTER DC TRACK A line', () => {
+        const input = 'ROSTER(3,"DC TRACK A","/* /")\nSEQUENCE(1)\nDONE'
+        expect(extractAutomationCustomContent(input)).not.toContain('ROSTER(3,"DC TRACK A"')
+        expect(extractAutomationCustomContent(input)).toContain('SEQUENCE(1)')
+    })
+
+    it('strips legacy ROSTER DC TRACK B, C, D lines', () => {
+        const input = [
+            'ROSTER(4,"DC TRACK B","/* /")',
+            'ROSTER(5,"DC TRACK C","/* /")',
+            'ROSTER(6,"DC TRACK D","/* /")',
+        ].join('\n')
+        expect(extractAutomationCustomContent(input)).toBe('')
+    })
+
+    it('does NOT strip non-DC ROSTER lines', () => {
+        const input = 'ROSTER(3,"Thomas","LIGHT/HORN")'
+        expect(extractAutomationCustomContent(input)).toContain('ROSTER(3,"Thomas","LIGHT/HORN")')
     })
 })

@@ -3,6 +3,7 @@ import {
     generateCommandStationConfig,
     parseCommandStationConfig,
     generateMyAutomation,
+    parseMyAutomationTrackManager,
     type CommandStationConfigOptions,
     type MyAutomationOptions,
 } from '../../src/renderer/src/config/commandstation'
@@ -20,10 +21,25 @@ function baseOpts(overrides: Partial<CommandStationConfigOptions> = {}): Command
         wifiSsid: '',
         wifiPassword: '',
         wifiChannel: 1,
+        hasStackedMotorShield: false,
+        trackManagerMode: 'dcc-only',
         trackAMode: 'MAIN',
-        trackBMode: 'PROG',
+        trackAType: 'dcc',
         trackALocoId: 3,
+        trackBMode: 'PROG',
+        trackBType: 'dcc',
         trackBLocoId: 4,
+        trackCMode: 'MAIN',
+        trackCType: 'dcc',
+        trackCLocoId: 0,
+        trackDMode: 'MAIN',
+        trackDType: 'dcc',
+        trackDLocoId: 0,
+        startupPowerMode: 'all',
+        trackAPower: 'ON',
+        trackBPower: 'ON',
+        trackCPower: 'ON',
+        trackDPower: 'ON',
         enablePowerOnStart: false,
         disableEeprom: false,
         enableEthernet: false,
@@ -35,10 +51,20 @@ function baseOpts(overrides: Partial<CommandStationConfigOptions> = {}): Command
 function baseAutoOpts(overrides: Partial<MyAutomationOptions> = {}): MyAutomationOptions {
     return {
         enablePowerOnStart: false,
+        hasStackedMotorShield: false,
         trackAMode: 'MAIN',
-        trackBMode: 'PROG',
         trackALocoId: 3,
+        startupPowerMode: 'all',
+        trackAPower: 'ON',
+        trackBMode: 'PROG',
         trackBLocoId: 4,
+        trackBPower: 'ON',
+        trackCMode: 'MAIN',
+        trackCLocoId: 0,
+        trackCPower: 'ON',
+        trackDMode: 'MAIN',
+        trackDLocoId: 0,
+        trackDPower: 'ON',
         ...overrides,
     }
 }
@@ -312,12 +338,67 @@ describe('generateMyAutomation', () => {
             const out = generateMyAutomation(baseAutoOpts({ enablePowerOnStart: true }))
             expect(out).toContain('DONE')
         })
+
+        it('uses POWERON when startupPowerMode is all', () => {
+            const out = generateMyAutomation(baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'all',
+            }))
+            expect(out).toContain('POWERON')
+            expect(out).not.toContain('SET_POWER(')
+            expect(out.indexOf('SET_TRACK(B,PROG)')).toBeLessThan(out.indexOf('POWERON'))
+        })
+
+        it('uses SET_POWER per track when startupPowerMode is individual', () => {
+            const out = generateMyAutomation(baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'individual',
+                trackAPower: 'ON',
+                trackBPower: 'OFF',
+            }))
+            expect(out).toContain('SET_POWER(A,ON)')
+            expect(out).toContain('SET_POWER(B,OFF)')
+            expect(out).not.toContain('POWERON')
+            expect(out.indexOf('SET_TRACK(B,PROG)')).toBeLessThan(out.indexOf('SET_POWER(A,ON)'))
+        })
+
+        it('includes SET_POWER for C/D when stacked shield is enabled', () => {
+            const out = generateMyAutomation(baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'individual',
+                hasStackedMotorShield: true,
+                trackCPower: 'OFF',
+                trackDPower: 'ON',
+            }))
+            expect(out).toContain('SET_POWER(C,OFF)')
+            expect(out).toContain('SET_POWER(D,ON)')
+        })
+
+        it('does not include POWERON when using individual power mode', () => {
+            const out = generateMyAutomation(baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'individual',
+                trackAPower: 'OFF',
+                trackBPower: 'ON',
+            }))
+            expect(out).toContain('SET_POWER(A,OFF)')
+            expect(out).toContain('SET_POWER(B,ON)')
+            expect(out).not.toContain('POWERON')
+        })
     })
 
     describe('track manager — non-DC modes', () => {
         it('emits SET_TRACK(A,DC) for DC_A mode', () => {
             const out = generateMyAutomation(baseAutoOpts({ trackAMode: 'DC', trackBMode: 'PROG' }))
             expect(out).toContain('SET_TRACK(A,DC)')
+        })
+
+        it('emits SET_TRACK for A/B/C/D when stacked shield is enabled with defaults', () => {
+            const out = generateMyAutomation(baseAutoOpts({ hasStackedMotorShield: true }))
+            expect(out).toContain('SET_TRACK(A,MAIN)')
+            expect(out).toContain('SET_TRACK(B,PROG)')
+            expect(out).toContain('SET_TRACK(C,MAIN)')
+            expect(out).toContain('SET_TRACK(D,MAIN)')
         })
 
         it('emits SET_TRACK(B,NONE) for NONE_B mode', () => {
@@ -355,6 +436,189 @@ describe('generateMyAutomation', () => {
         it('does not add ROSTER for non-DC track', () => {
             const out = generateMyAutomation(baseAutoOpts({ trackAMode: 'MAIN', trackBMode: 'PROG' }))
             expect(out).not.toContain('ROSTER')
+        })
+    })
+})
+
+// ── parseMyAutomationTrackManager ─────────────────────────────────────────────
+
+describe('parseMyAutomationTrackManager', () => {
+    describe('empty / missing AUTOSTART', () => {
+        it('returns empty object for empty string', () => {
+            expect(parseMyAutomationTrackManager('')).toEqual({})
+        })
+
+        it('returns empty object when no AUTOSTART block found', () => {
+            expect(parseMyAutomationTrackManager('// just a comment\n')).toEqual({})
+        })
+    })
+
+    describe('SET_TRACK parsing', () => {
+        it('parses trackAMode from SET_TRACK(A,...)', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\nDONE'
+            expect(parseMyAutomationTrackManager(content).trackAMode).toBe('MAIN')
+        })
+
+        it('parses trackBMode from SET_TRACK(B,...)', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(B,PROG)\nDONE'
+            expect(parseMyAutomationTrackManager(content).trackBMode).toBe('PROG')
+        })
+
+        it('parses trackCMode from SET_TRACK(C,...)', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(C,MAIN)\nDONE'
+            expect(parseMyAutomationTrackManager(content).trackCMode).toBe('MAIN')
+        })
+
+        it('parses trackDMode from SET_TRACK(D,...)', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(D,NONE)\nDONE'
+            expect(parseMyAutomationTrackManager(content).trackDMode).toBe('NONE')
+        })
+
+        it('parses all four tracks when all present', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  SET_TRACK(B,PROG)\n  SET_TRACK(C,MAIN)\n  SET_TRACK(D,MAIN)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.trackAMode).toBe('MAIN')
+            expect(opts.trackBMode).toBe('PROG')
+            expect(opts.trackCMode).toBe('MAIN')
+            expect(opts.trackDMode).toBe('MAIN')
+        })
+    })
+
+    describe('SETLOCO parsing', () => {
+        it('parses trackALocoId from SETLOCO before SET_TRACK(A,...)', () => {
+            const content = 'AUTOSTART\n  SETLOCO(7) SET_TRACK(A,DC)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.trackALocoId).toBe(7)
+            expect(opts.trackAMode).toBe('DC')
+        })
+
+        it('parses trackBLocoId from SETLOCO before SET_TRACK(B,...)', () => {
+            const content = 'AUTOSTART\n  SETLOCO(12) SET_TRACK(B,DCX)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.trackBLocoId).toBe(12)
+        })
+    })
+
+    describe('stacked motor shield detection', () => {
+        it('sets hasStackedMotorShield true when track C is present', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  SET_TRACK(C,MAIN)\nDONE'
+            expect(parseMyAutomationTrackManager(content).hasStackedMotorShield).toBe(true)
+        })
+
+        it('sets hasStackedMotorShield true when track D is present', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(D,MAIN)\nDONE'
+            expect(parseMyAutomationTrackManager(content).hasStackedMotorShield).toBe(true)
+        })
+
+        it('does NOT set hasStackedMotorShield when only A and B present', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  SET_TRACK(B,PROG)\nDONE'
+            expect(parseMyAutomationTrackManager(content).hasStackedMotorShield).toBeUndefined()
+        })
+    })
+
+    describe('POWERON parsing', () => {
+        it('sets enablePowerOnStart and startupPowerMode all when POWERON found', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  POWERON\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.enablePowerOnStart).toBe(true)
+            expect(opts.startupPowerMode).toBe('all')
+        })
+
+        it('does NOT set enablePowerOnStart when no power command', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.enablePowerOnStart).toBeUndefined()
+        })
+    })
+
+    describe('SET_POWER parsing', () => {
+        it('sets startupPowerMode individual and trackAPower when SET_POWER(A,...) present', () => {
+            const content = 'AUTOSTART\n  SET_TRACK(A,MAIN)\n  SET_POWER(A,ON)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.startupPowerMode).toBe('individual')
+            expect(opts.trackAPower).toBe('ON')
+            expect(opts.enablePowerOnStart).toBe(true)
+        })
+
+        it('parses trackBPower OFF from SET_POWER(B,OFF)', () => {
+            const content = 'AUTOSTART\n  SET_POWER(A,ON)\n  SET_POWER(B,OFF)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.trackBPower).toBe('OFF')
+        })
+
+        it('parses SET_POWER for C and D tracks', () => {
+            const content = 'AUTOSTART\n  SET_POWER(C,OFF)\n  SET_POWER(D,ON)\nDONE'
+            const opts = parseMyAutomationTrackManager(content)
+            expect(opts.trackCPower).toBe('OFF')
+            expect(opts.trackDPower).toBe('ON')
+        })
+
+        it('does NOT set POWERON mode when using individual SET_POWER', () => {
+            const content = 'AUTOSTART\n  SET_POWER(A,ON)\n  SET_POWER(B,ON)\nDONE'
+            expect(parseMyAutomationTrackManager(content).startupPowerMode).toBe('individual')
+        })
+    })
+
+    describe('round-trip: generateMyAutomation → parseMyAutomationTrackManager', () => {
+        it('round-trips POWERON (all mode)', () => {
+            const opts = baseAutoOpts({ enablePowerOnStart: true, startupPowerMode: 'all' })
+            const content = generateMyAutomation(opts)
+            const parsed = parseMyAutomationTrackManager(content)
+            expect(parsed.enablePowerOnStart).toBe(true)
+            expect(parsed.startupPowerMode).toBe('all')
+        })
+
+        it('round-trips individual SET_POWER with mixed ON/OFF', () => {
+            const opts = baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'individual',
+                trackAPower: 'ON',
+                trackBPower: 'OFF',
+            })
+            const content = generateMyAutomation(opts)
+            const parsed = parseMyAutomationTrackManager(content)
+            expect(parsed.startupPowerMode).toBe('individual')
+            expect(parsed.trackAPower).toBe('ON')
+            expect(parsed.trackBPower).toBe('OFF')
+        })
+
+        it('round-trips stacked shield with all four SET_TRACK modes', () => {
+            const opts = baseAutoOpts({
+                hasStackedMotorShield: true,
+                trackAMode: 'MAIN',
+                trackBMode: 'PROG',
+                trackCMode: 'MAIN',
+                trackDMode: 'NONE',
+            })
+            const content = generateMyAutomation(opts)
+            const parsed = parseMyAutomationTrackManager(content)
+            expect(parsed.hasStackedMotorShield).toBe(true)
+            expect(parsed.trackAMode).toBe('MAIN')
+            expect(parsed.trackBMode).toBe('PROG')
+            expect(parsed.trackCMode).toBe('MAIN')
+            expect(parsed.trackDMode).toBe('NONE')
+        })
+
+        it('round-trips SET_POWER for C and D when stacked shield enabled', () => {
+            const opts = baseAutoOpts({
+                enablePowerOnStart: true,
+                startupPowerMode: 'individual',
+                hasStackedMotorShield: true,
+                trackCPower: 'OFF',
+                trackDPower: 'ON',
+            })
+            const content = generateMyAutomation(opts)
+            const parsed = parseMyAutomationTrackManager(content)
+            expect(parsed.trackCPower).toBe('OFF')
+            expect(parsed.trackDPower).toBe('ON')
+        })
+
+        it('round-trips DC track with loco ID', () => {
+            const opts = baseAutoOpts({ trackAMode: 'DC', trackALocoId: 9 })
+            const content = generateMyAutomation(opts)
+            const parsed = parseMyAutomationTrackManager(content)
+            expect(parsed.trackAMode).toBe('DC')
+            expect(parsed.trackALocoId).toBe(9)
         })
     })
 })
