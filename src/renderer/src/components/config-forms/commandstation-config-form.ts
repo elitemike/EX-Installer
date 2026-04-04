@@ -1,4 +1,4 @@
-import { resolve } from 'aurelia'
+import { resolve, observable } from 'aurelia'
 import { ConfigEditorState } from '../../models/config-editor-state'
 import { InstallerState } from '../../models/installer-state'
 import { FileService } from '../../services/file.service'
@@ -146,6 +146,13 @@ export class CommandstationConfigFormCustomElement {
     private sfTrackDTypeDcc?: RadioButton
     private sfTrackDTypeDc?: RadioButton
     private sfTrackDLocoId?: NumericTextBox
+    @observable
+    private csbTick = 0
+
+    // Event handler for config switches
+    private configSwitchedHandler = async (): Promise<void> => {
+        await this.reloadFromConfig()
+    }
 
     get isEsp32(): boolean {
         return this.installerState.selectedDevice?.fqbn === 'esp32:esp32:esp32'
@@ -153,7 +160,17 @@ export class CommandstationConfigFormCustomElement {
 
     get isCsb1(): boolean {
         const name = this.installerState.selectedDevice?.name ?? ''
-        return this.isEsp32 && (name.includes('EX-CSB1') || name.toUpperCase().includes('EXCSB1'))
+        // Treat as CSB1 when target is ESP32 and either the device name
+        // indicates EX-CSB1, the current parsed motor driver is EXCSB1,
+        // or the loaded `config.h` contains MOTOR_SHIELD_TYPE EXCSB1.
+        const cfgText = this.editorState?.configHContent ?? ''
+        const motorFromConfig = (cfgText.match(/^#define\s+MOTOR_SHIELD_TYPE\s+(\S+)$/m) || [])[1]
+        return this.isEsp32 && (
+            name.includes('EX-CSB1') ||
+            name.toUpperCase().includes('EXCSB1') ||
+            (this.opts.motorDriver?.toUpperCase().startsWith('EXCSB1') ?? false) ||
+            (motorFromConfig?.toUpperCase().startsWith('EXCSB1') ?? false)
+        )
     }
 
     get hasStackedMotorShield(): boolean {
@@ -206,9 +223,25 @@ export class CommandstationConfigFormCustomElement {
     async attached(): Promise<void> {
         await this.loadMotorDrivers()
         this.initSfControls()
+        // Listen for config switches so the form can refresh without a
+        // full reattach. The workspace dispatches `exinst:config-switched`.
+        try {
+            window.addEventListener('exinst:config-switched', this.configSwitchedHandler as EventListener)
+        } catch {
+            // noop in non-browser contexts
+        }
     }
 
     detaching(): void {
+        this.destroySfControls()
+        try {
+            window.removeEventListener('exinst:config-switched', this.configSwitchedHandler as EventListener)
+        } catch {
+            // noop
+        }
+    }
+
+    private destroySfControls(): void {
         this.sfMotorDriver?.destroy()
         this.sfDisplay?.destroy()
         this.sfScrollMode?.destroy()
@@ -252,6 +285,21 @@ export class CommandstationConfigFormCustomElement {
         this.sfTrackDLocoId?.destroy()
     }
 
+    private async reloadFromConfig(): Promise<void> {
+        // Re-parse config.h into current options so `isCsb1` and
+        // `motorDrivers` reflect values from the loaded `config.h`.
+        try {
+            Object.assign(this.opts, parseCommandStationConfig(this.editorState.configHContent))
+        } catch {
+            // parsing failure -> keep existing opts
+        }
+        await this.loadMotorDrivers()
+        // Destroy existing controls and re-initialise so new motor driver
+        // selections and CSB1 detection take effect.
+        this.destroySfControls()
+        this.initSfControls()
+    }
+
     private initSfControls(): void {
         // ── General tab ──────────────────────────────────────────────────────
 
@@ -264,6 +312,8 @@ export class CommandstationConfigFormCustomElement {
                     this.opts.hasStackedMotorShield = this.opts.motorDriver === 'EXCSB1_WITH_EX8874'
                 }
                 this.onFieldChange()
+                this.csbTick = (this.csbTick || 0) + 1
+                void this.reloadFromConfig()
             },
         })
         this.sfMotorDriver.appendTo(this.motorDriverEl)

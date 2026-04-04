@@ -389,6 +389,18 @@ export class Workspace {
         this.compileLog = ''
         this.compileSuccess = null
         await this.refreshConfigFilesFromDisk()
+        // Ensure the ConfigEditorState mirrors the newly-switched config files
+        // so components that parse `config.h` (e.g. commandstation form) see
+        // updated values such as `MOTOR_SHIELD_TYPE` immediately.
+        this.configEditorState.loadFromInstallerState()
+        // Notify any mounted components that the active config changed so they
+        // can re-parse `config.h` and refresh UI state without requiring a
+        // full reattach / reload.
+        try {
+            window.dispatchEvent(new CustomEvent('exinst:config-switched'))
+        } catch {
+            // noop in non-browser or test environments
+        }
     }
 
     async addNewDevice(): Promise<void> {
