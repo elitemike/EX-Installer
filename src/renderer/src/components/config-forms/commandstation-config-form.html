@@ -42,7 +42,8 @@
                     <input ref="displayEl" type="text" />
 
                     <!-- Scroll mode — only when a display is selected -->
-                    <div class="${opts.display !== 'NONE' ? 'flex flex-col gap-2 pt-2 border-t border-white/10' : 'hidden'}">
+                    <div
+                        class="${opts.display !== 'NONE' ? 'flex flex-col gap-2 pt-2 border-t border-white/10' : 'hidden'}">
                         <label class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Scroll mode</label>
                         <input ref="scrollModeEl" type="text" />
                     </div>
@@ -79,7 +80,8 @@
             <div class="${activeConfigTab === 'wifi' ? 'flex flex-col gap-4 max-w-2xl' : 'hidden'}">
 
                 <!-- WiFi disabled warning -->
-                <div class="${!opts.enableWifi && !isCsb1 ? 'px-4 py-3 bg-yellow-950/40 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm' : 'hidden'}">
+                <div
+                    class="${!opts.enableWifi && !isCsb1 ? 'px-4 py-3 bg-yellow-950/40 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm' : 'hidden'}">
                     WiFi is disabled. Enable it on the General tab first.
                 </div>
 
@@ -95,14 +97,15 @@
                     </div>
 
                     <!-- AP mode info box -->
-                    <div class="${opts.wifiMode === 'ap' ? 'px-4 py-3 bg-blue-950/40 border border-blue-500/30 rounded-lg text-sm text-blue-200 leading-relaxed' : 'hidden'}">
+                    <div
+                        class="${opts.wifiMode === 'ap' ? 'px-4 py-3 bg-blue-950/40 border border-blue-500/30 rounded-lg text-sm text-blue-200 leading-relaxed' : 'hidden'}">
                         <p class="font-medium text-blue-300 mb-1">Access Point mode</p>
                         <p>The command station creates its own WiFi network. Nearby devices connect directly to it —
                             no existing router needed.</p>
                         <p class="mt-1 text-blue-300/80">By default the firmware sets the network name to <span
-                                class="font-mono">DCCEX</span> and the password to <span
-                                class="font-mono">PASS</span>. You can override these below, or click <span
-                                class="italic">Reset to defaults</span> to use the firmware values.</p>
+                                class="font-mono">DCCEX</span> and the password to <span class="font-mono">PASS</span>.
+                            You can override these below, or click <span class="italic">Reset to defaults</span> to use
+                            the firmware values.</p>
                     </div>
 
                     <!-- Common network fields -->
@@ -116,7 +119,8 @@
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs text-gray-400">
                                 ${opts.wifiMode === 'ap' ? 'Custom network name' : 'Network SSID'}
-                                <span if.bind="opts.wifiMode === 'ap'" class="text-gray-600"> (optional — overrides firmware default)</span>
+                                <span if.bind="opts.wifiMode === 'ap'" class="text-gray-600"> (optional — overrides
+                                    firmware default)</span>
                                 <span if.bind="opts.wifiMode !== 'ap'" class="text-red-400"> *</span>
                             </label>
                             <input ref="wifiSsidEl" type="text" />
@@ -125,7 +129,8 @@
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs text-gray-400">
                                 ${opts.wifiMode === 'ap' ? 'Custom password' : 'Password'}
-                                <span if.bind="opts.wifiMode === 'ap'" class="text-gray-600"> (optional — overrides firmware default)</span>
+                                <span if.bind="opts.wifiMode === 'ap'" class="text-gray-600"> (optional — overrides
+                                    firmware default)</span>
                             </label>
                             <input ref="wifiPasswordEl" type="password" />
                         </div>
@@ -152,7 +157,8 @@
 
                 <!-- Stacked motor shield option (CSB1 only) -->
                 <div if.bind="isCsb1" class="bg-gray-800/50 border border-white/10 rounded-lg p-4 flex flex-col gap-3">
-                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Motor Shield Configuration</span>
+                    <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Motor Shield
+                        Configuration</span>
                     <input ref="hasStackedMotorShieldEl" type="checkbox" />
                 </div>
 
@@ -231,7 +237,8 @@
                 </div>
 
                 <!-- Track C (only with stacked motor shield) -->
-                <div class="${hasStackedMotorShield ? 'bg-gray-800/50 border border-white/10 rounded-lg p-4 flex flex-col gap-3' : 'hidden'}">
+                <div
+                    class="${hasStackedMotorShield ? 'bg-gray-800/50 border border-white/10 rounded-lg p-4 flex flex-col gap-3' : 'hidden'}">
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Track C</span>
                     <div class="flex items-center gap-4">
                         <!-- Type selector (mixed mode only) -->
@@ -260,7 +267,8 @@
                 </div>
 
                 <!-- Track D (only with stacked motor shield) -->
-                <div class="${hasStackedMotorShield ? 'bg-gray-800/50 border border-white/10 rounded-lg p-4 flex flex-col gap-3' : 'hidden'}">
+                <div
+                    class="${hasStackedMotorShield ? 'bg-gray-800/50 border border-white/10 rounded-lg p-4 flex flex-col gap-3' : 'hidden'}">
                     <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Track D</span>
                     <div class="flex items-center gap-4">
                         <!-- Type selector (mixed mode only) -->

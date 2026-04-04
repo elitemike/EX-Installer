@@ -197,6 +197,29 @@ describe('Workspace.compile — state reset on each call', () => {
 // ── File saving ───────────────────────────────────────────────────────────────
 
 describe('Workspace.compile — file saving before compile', () => {
+    it('blurs active element before saving files', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
+        const blur = vi.fn()
+        const prevDocument = (globalThis as { document?: unknown }).document
+            ; (globalThis as { document?: unknown }).document = { activeElement: { blur } }
+
+        await ws.compile()
+
+        expect(blur).toHaveBeenCalledTimes(1)
+            ; (globalThis as { document?: unknown }).document = prevDocument
+    })
+
+    it('still compiles when there is no active element', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
+        const prevDocument = (globalThis as { document?: unknown }).document
+            ; (globalThis as { document?: unknown }).document = { activeElement: null }
+
+        await ws.compile()
+
+        expect((ws as any).cli.compile).toHaveBeenCalledTimes(1)
+            ; (globalThis as { document?: unknown }).document = prevDocument
+    })
+
     it('writes config.h to the correct path', async () => {
         const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
         await ws.compile()
@@ -252,6 +275,31 @@ describe('Workspace.compile — file saving before compile', () => {
         const writeFile = (ws as any).files.writeFile as ReturnType<typeof vi.fn>
         const configHWrite = writeFile.mock.calls.find((c: string[]) => c[0].endsWith('config.h'))
         expect(configHWrite![1]).toContain('#define WIFI_HOSTNAME "dccex"')
+    })
+})
+
+describe('Workspace.saveFiles — preflush behavior', () => {
+    it('blurs active element before saving files', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
+        const blur = vi.fn()
+        const prevDocument = (globalThis as { document?: unknown }).document
+            ; (globalThis as { document?: unknown }).document = { activeElement: { blur } }
+
+        await ws.saveFiles()
+
+        expect(blur).toHaveBeenCalledTimes(1)
+            ; (globalThis as { document?: unknown }).document = prevDocument
+    })
+
+    it('still saves files when there is no active element', async () => {
+        const ws = makeWorkspace({ state: { selectedDevice: megaDevice, repoPath: REPO, configFiles } })
+        const prevDocument = (globalThis as { document?: unknown }).document
+            ; (globalThis as { document?: unknown }).document = { activeElement: null }
+
+        await ws.saveFiles()
+
+        expect((ws as any).files.writeFile).toHaveBeenCalledTimes(configFiles.length)
+            ; (globalThis as { document?: unknown }).document = prevDocument
     })
 })
 

@@ -188,6 +188,7 @@ export class Workspace {
     }
 
     async saveFiles(): Promise<void> {
+        await this.flushPendingFormEdits()
         // Ensure latest parsed state (roster headers, turnout headers) is written
         // back into configFiles before we write to disk.
         this.configEditorState.syncAll()
@@ -224,6 +225,15 @@ export class Workspace {
         this.compileLog = ''
         this.compileSuccess = null
         this.compileError = null
+    }
+
+    private async flushPendingFormEdits(): Promise<void> {
+        const active = globalThis.document?.activeElement as HTMLElement | null | undefined
+        if (active && typeof active.blur === 'function') {
+            active.blur()
+            // Allow blur/change handlers to run before saving files.
+            await Promise.resolve()
+        }
     }
 
     async compile(): Promise<void> {

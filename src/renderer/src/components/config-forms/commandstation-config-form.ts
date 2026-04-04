@@ -2,14 +2,14 @@ import { resolve } from 'aurelia'
 import { ConfigEditorState } from '../../models/config-editor-state'
 import { InstallerState } from '../../models/installer-state'
 import { FileService } from '../../services/file.service'
-import { 
-    type CommandStationConfigOptions, 
-    type MyAutomationOptions, 
-    defaultCommandStationConfig, 
-    parseCommandStationConfig, 
-    generateCommandStationConfig, 
-    generateMyAutomation, 
-    parseMyAutomationTrackManager 
+import {
+    type CommandStationConfigOptions,
+    type MyAutomationOptions,
+    defaultCommandStationConfig,
+    parseCommandStationConfig,
+    generateCommandStationConfig,
+    generateMyAutomation,
+    parseMyAutomationTrackManager
 } from '../../config/commandstation'
 import { TextBox, NumericTextBox } from '@syncfusion/ej2-inputs'
 import { CheckBox, RadioButton, Button } from '@syncfusion/ej2-buttons'
@@ -186,12 +186,12 @@ export class CommandstationConfigFormCustomElement {
             this.opts.enableWifi = true
             this.opts.disableEeprom = true
         }
-            // Load track manager settings from myAutomation.h if present
-            const automationFile = this.installerState.configFiles.find(f => f.name === 'myAutomation.h')
-            if (automationFile != null) {
-                const trackManagerOpts = parseMyAutomationTrackManager(automationFile.content)
-                Object.assign(this.opts, trackManagerOpts)
-            }
+        // Load track manager settings from myAutomation.h if present
+        const automationFile = this.installerState.configFiles.find(f => f.name === 'myAutomation.h')
+        if (automationFile != null) {
+            const trackManagerOpts = parseMyAutomationTrackManager(automationFile.content)
+            Object.assign(this.opts, trackManagerOpts)
+        }
     }
 
     async attached(): Promise<void> {
@@ -855,26 +855,26 @@ export class CommandstationConfigFormCustomElement {
 
         this.editorState.configHContent = generateCommandStationConfig(this.opts)
         this.editorState.syncConfigH()
-            // Generate and sync track manager automation content
-            const automationOpts: MyAutomationOptions = {
-                enablePowerOnStart: this.opts.enablePowerOnStart,
-                hasStackedMotorShield: this.opts.hasStackedMotorShield,
-                startupPowerMode: this.opts.startupPowerMode,
-                trackAMode: this.opts.trackAMode,
-                trackALocoId: this.opts.trackALocoId,
-                trackAPower: this.opts.trackAPower,
-                trackBMode: this.opts.trackBMode,
-                trackBLocoId: this.opts.trackBLocoId,
-                trackBPower: this.opts.trackBPower,
-                trackCMode: this.opts.trackCMode,
-                trackCLocoId: this.opts.trackCLocoId,
-                trackCPower: this.opts.trackCPower,
-                trackDMode: this.opts.trackDMode,
-                trackDLocoId: this.opts.trackDLocoId,
-                trackDPower: this.opts.trackDPower,
-            }
-            const automationContent = generateMyAutomation(automationOpts)
-            this.editorState.syncTrackManager(automationContent)
+        // Generate and sync track manager automation content
+        const automationOpts: MyAutomationOptions = {
+            enablePowerOnStart: this.opts.enablePowerOnStart,
+            hasStackedMotorShield: this.opts.hasStackedMotorShield,
+            startupPowerMode: this.opts.startupPowerMode,
+            trackAMode: this.opts.trackAMode,
+            trackALocoId: this.opts.trackALocoId,
+            trackAPower: this.opts.trackAPower,
+            trackBMode: this.opts.trackBMode,
+            trackBLocoId: this.opts.trackBLocoId,
+            trackBPower: this.opts.trackBPower,
+            trackCMode: this.opts.trackCMode,
+            trackCLocoId: this.opts.trackCLocoId,
+            trackCPower: this.opts.trackCPower,
+            trackDMode: this.opts.trackDMode,
+            trackDLocoId: this.opts.trackDLocoId,
+            trackDPower: this.opts.trackDPower,
+        }
+        const automationContent = generateMyAutomation(automationOpts)
+        this.editorState.syncTrackManager(automationContent)
     }
 
     onWifiToggle(): void {
