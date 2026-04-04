@@ -300,6 +300,12 @@ describe('parseCommandStationConfig', () => {
         it('round-trips custom motor driver', () => {
             expect(roundTrip({ motorDriver: 'EX8874' }).motorDriver).toBe('EX8874')
         })
+
+        it('marks stacked shield when MOTOR_SHIELD_TYPE is EXCSB1_WITH_EX8874', () => {
+            const parsed = roundTrip({ motorDriver: 'EXCSB1_WITH_EX8874', hasStackedMotorShield: false })
+            expect(parsed.motorDriver).toBe('EXCSB1_WITH_EX8874')
+            expect(parsed.hasStackedMotorShield).toBe(true)
+        })
     })
 })
 

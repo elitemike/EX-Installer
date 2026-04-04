@@ -84,12 +84,19 @@ export class DeviceWizard {
 
     // ── Step 4: Confirm ──────────────────────────────────────────────────────
     deviceNickname = ''
+    hasStackedMotorShield = false
 
     // ── Finishing ────────────────────────────────────────────────────────────
     finishing = false
     finishError: string | null = null
 
     isMock = false
+
+    get showStackedMotorShieldOption(): boolean {
+        if (this.selectedProduct !== 'ex_commandstation' || !this.selectedBoard) return false
+        const boardName = this.selectedBoard.name.toUpperCase()
+        return boardName.includes('EX-CSB1') || boardName.includes('EXCSB1')
+    }
 
     // ── Syncfusion Stepper ───────────────────────────────────────────────────
     stepperContainer!: HTMLElement
@@ -172,6 +179,19 @@ export class DeviceWizard {
             ex_turntable: 'Controls a turntable or traverser',
         }
         return desc[key] ?? ''
+    }
+
+    private applyCsb1MotorShieldType(content: string): string {
+        if (!this.showStackedMotorShieldOption) return content
+
+        const motorShieldType = this.hasStackedMotorShield ? 'EXCSB1_WITH_EX8874' : 'EXCSB1'
+        const motorShieldPattern = /^#define\s+MOTOR_SHIELD_TYPE\s+\S+$/m
+
+        if (motorShieldPattern.test(content)) {
+            return content.replace(motorShieldPattern, `#define MOTOR_SHIELD_TYPE ${motorShieldType}`)
+        }
+
+        return `${content.trimEnd()}\n#define MOTOR_SHIELD_TYPE ${motorShieldType}\n`
     }
 
     isDeviceSupported(productKey: string): boolean {
@@ -393,6 +413,9 @@ export class DeviceWizard {
                     } else if (examplePathInfix && await this.files.exists(examplePathInfix)) {
                         content = await this.files.readFile(examplePathInfix)
                     }
+                }
+                if (fileName === 'config.h') {
+                    content = this.applyCsb1MotorShieldType(content)
                 }
                 configFiles.push({ name: fileName, content })
                 console.debug('[device-wizard] writing starter config to scratch:', `${scratchPath}/${fileName}`)

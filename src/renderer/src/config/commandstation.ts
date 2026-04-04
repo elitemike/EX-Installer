@@ -247,7 +247,12 @@ export function parseCommandStationConfig(content: string): CommandStationConfig
         new RegExp(`^#define\\s+${key}(?:\\s|$)`, 'm').test(content)
 
     const motorDriver = def('MOTOR_SHIELD_TYPE')
-    if (motorDriver) opts.motorDriver = motorDriver
+    if (motorDriver) {
+        opts.motorDriver = motorDriver
+        if (motorDriver.toUpperCase() === 'EXCSB1_WITH_EX8874') {
+            opts.hasStackedMotorShield = true
+        }
+    }
 
     if (has('OLED_DRIVER')) {
         const v = def('OLED_DRIVER')

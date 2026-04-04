@@ -28,7 +28,7 @@ const FALLBACK_DRIVERS_GENERIC = [
     'NOINVERTER',
 ]
 
-const FALLBACK_DRIVERS_CSB1 = ['EXCSB1', 'EXCSB1_PROG']
+const FALLBACK_DRIVERS_CSB1 = ['EXCSB1', 'EXCSB1_WITH_EX8874', 'EXCSB1_PROG']
 
 export class CommandstationConfigFormCustomElement {
     private readonly editorState = resolve(ConfigEditorState)
@@ -182,6 +182,7 @@ export class CommandstationConfigFormCustomElement {
 
     binding(): void {
         Object.assign(this.opts, parseCommandStationConfig(this.editorState.configHContent))
+        const initialMotorDriver = this.opts.motorDriver
         if (this.isEsp32) {
             this.opts.enableWifi = true
             this.opts.disableEeprom = true
@@ -191,6 +192,14 @@ export class CommandstationConfigFormCustomElement {
         if (automationFile != null) {
             const trackManagerOpts = parseMyAutomationTrackManager(automationFile.content)
             Object.assign(this.opts, trackManagerOpts)
+        }
+        this.syncCsb1MotorShieldDriver()
+
+        // If stacked-shield state inferred from myAutomation changes the CSB1 driver,
+        // persist the normalized value so dropdown and config.h stay consistent.
+        if (this.opts.motorDriver !== initialMotorDriver) {
+            this.editorState.configHContent = generateCommandStationConfig(this.opts)
+            this.editorState.syncConfigH()
         }
     }
 
@@ -251,6 +260,9 @@ export class CommandstationConfigFormCustomElement {
             value: this.opts.motorDriver,
             change: (args) => {
                 this.opts.motorDriver = args.value as string
+                if (this.isCsb1) {
+                    this.opts.hasStackedMotorShield = this.opts.motorDriver === 'EXCSB1_WITH_EX8874'
+                }
                 this.onFieldChange()
             },
         })
@@ -414,6 +426,7 @@ export class CommandstationConfigFormCustomElement {
                 checked: this.opts.hasStackedMotorShield,
                 change: (args) => {
                     this.opts.hasStackedMotorShield = args.checked
+                    this.syncCsb1MotorShieldDriver()
                     this.onFieldChange()
                 },
             })
@@ -839,12 +852,28 @@ export class CommandstationConfigFormCustomElement {
         this.onFieldChange()
     }
 
+    private syncCsb1MotorShieldDriver(): void {
+        const csb1DriverSelected = this.opts.motorDriver.toUpperCase().startsWith('EXCSB1')
+        if (!this.isCsb1 && !csb1DriverSelected && !this.opts.hasStackedMotorShield) return
+
+        if (this.opts.hasStackedMotorShield) {
+            this.opts.motorDriver = 'EXCSB1_WITH_EX8874'
+        } else if (this.opts.motorDriver === 'EXCSB1_WITH_EX8874') {
+            this.opts.motorDriver = 'EXCSB1'
+        }
+
+        if (this.sfMotorDriver && this.sfMotorDriver.value !== this.opts.motorDriver) {
+            this.sfMotorDriver.value = this.opts.motorDriver
+        }
+    }
+
     onFieldChange(): void {
         if (this.opts.enableWifi) this.opts.enableEthernet = false
         if (this.isEsp32) {
             this.opts.enableWifi = true
             this.opts.disableEeprom = true
         }
+        this.syncCsb1MotorShieldDriver()
         // Startup power mode drives whether POWERON/SET_POWER should be emitted.
         // If "all" is selected, always generate startup power commands.
         if (this.opts.startupPowerMode === 'all') {

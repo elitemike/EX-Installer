@@ -196,6 +196,19 @@ test.describe('Config Editor — EX-CommandStation', () => {
         await switchToVisual(workspacePage)
         await expect(workspacePage.locator('commandstation-config-form')).toBeVisible()
     })
+
+    test('regression: selecting EXCSB1_WITH_EX8874 updates MOTOR_SHIELD_TYPE in config.h', async ({ csb1StackedPage }) => {
+        await openDeviceSettings(csb1StackedPage)
+
+        // Select the motor driver from the Syncfusion dropdown.
+        await csb1StackedPage.locator('commandstation-config-form .e-ddl').first().click()
+        await csb1StackedPage.locator('li.e-list-item', { hasText: 'EXCSB1_WITH_EX8874' }).first().click()
+
+        await switchToRaw(csb1StackedPage)
+
+        await expect(csb1StackedPage.locator('config-h-editor div.monaco-editor'))
+            .toContainText('#define MOTOR_SHIELD_TYPE EXCSB1_WITH_EX8874')
+    })
 })
 
 // ── Automation Editor (myAutomation.h) ───────────────────────────────────────

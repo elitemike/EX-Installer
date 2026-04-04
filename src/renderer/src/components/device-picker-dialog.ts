@@ -13,7 +13,7 @@ import type { ArduinoCliBoardInfo } from '../../../types/ipc'
  *   cancel()   — user closed the dialog entirely (folder load is aborted)
  */
 export class DevicePickerDialog implements IDialogCustomElementViewModel {
-    private readonly $dialog = resolve(IDialogController)
+    readonly $dialog = resolve(IDialogController)
     private readonly cli = resolve(ArduinoCliService)
 
     boards: ArduinoCliBoardInfo[] = []
